@@ -1,0 +1,152 @@
+﻿<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ট্রেন ট্র্যাকার</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, "Noto Sans Bengali", sans-serif; display: flex; flex-direction: column; height: 100vh; }
+  header { padding: 10px; background: #0b5d3b; color: #fff; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  select, button { padding: 10px 12px; font-size: 16px; border-radius: 8px; border: 0; }
+  button { background: #ffb400; font-weight: 600; cursor: pointer; }
+  button.on { background: #e53935; color: #fff; }
+  #status { font-size: 14px; flex-basis: 100%; }
+  #map { flex: 1; }
+</style>
+</head>
+<body>
+<header>
+  <select id="trainSelect"><option value="">ট্রেন বেছে নিন...</option></select>
+  <button id="shareBtn">আমি এই ট্রেনে আছি</button>
+  <div id="status">একটি ট্রেন সিলেক্ট করুন।</div>
+</header>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ====== এখানে আপনার Apps Script Web App URL বসান ======
+const API_URL = "https://script.google.com/macros/s/AKfycbwiU2NeLwnjB379Ko8B9wFtSBbYbYgZa1yLSge4x0yAnDtBHo8wSF2JbRBDjizd-vk6sA/exec";
+// =======================================================
+
+const POLL_MS = 10000;        // ম্যাপ রিফ্রেশ: ১০ সেকেন্ড
+const SEND_MS = 10000;        // লোকেশন পাঠানো: ১০ সেকেন্ড
+const STALE_MS = 5 * 60000;   // ৫ মিনিটের পুরনো ডেটা = "পুরনো"
+
+const map = L.map("map").setView([23.8, 90.4], 7);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 18, attribution: "© OpenStreetMap"
+}).addTo(map);
+
+const select = document.getElementById("trainSelect");
+const shareBtn = document.getElementById("shareBtn");
+const statusEl = document.getElementById("status");
+let trains = {};
+let marker = null;
+let watchId = null, lastSent = 0, myPos = null;
+
+// --- ট্রেনের তালিকা লোড ---
+async function loadTrains() {
+  try {
+    const res = await fetch(API_URL + "?action=trains");
+    const data = await res.json();
+    data.trains.forEach(t => {
+      trains[t.id] = t;
+      select.add(new Option(t.name + (t.route ? " (" + t.route + ")" : ""), t.id));
+    });
+  } catch (e) {
+    statusEl.textContent = "ট্রেনের তালিকা লোড হয়নি। API_URL ঠিক আছে কিনা দেখুন।";
+  }
+}
+
+// --- সিলেক্ট করা ট্রেনের লোকেশন আনা ---
+async function refresh() {
+  const id = select.value;
+  if (!id) return;
+  try {
+    const res = await fetch(API_URL + "?action=locations");
+    const data = await res.json();
+    const loc = data.locations[id];
+    if (!loc) {
+      statusEl.textContent = "এই ট্রেনের লোকেশন এখনও কেউ শেয়ার করেননি।";
+      if (marker) { map.removeLayer(marker); marker = null; }
+      return;
+    }
+    const ageSec = Math.round((data.now - loc.time) / 1000);
+    const stale = (data.now - loc.time) > STALE_MS;
+    const ll = [loc.lat, loc.lng];
+    if (!marker) {
+      marker = L.marker(ll).addTo(map);
+      map.setView(ll, 12);
+    } else {
+      marker.setLatLng(ll);
+    }
+    marker.bindPopup("🚆 " + trains[id].name).openPopup();
+    const ageText = ageSec < 60 ? ageSec + " সেকেন্ড" : Math.round(ageSec / 60) + " মিনিট";
+    statusEl.textContent = (stale ? "⚠️ পুরনো তথ্য — " : "✅ লাইভ — ") + "শেষ আপডেট " + ageText + " আগে";
+  } catch (e) {
+    statusEl.textContent = "ডেটা আনতে সমস্যা হয়েছে।";
+  }
+}
+
+// --- "আমি এই ট্রেনে আছি" ---
+async function sendLocation(pos) {
+  const now = Date.now();
+  if (now - lastSent < SEND_MS) return;
+  lastSent = now;
+  try {
+    // text/plain ব্যবহার করলে CORS preflight লাগে না
+    await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        trainId: select.value,
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        speed: pos.coords.speed || 0
+      })
+    });
+    statusEl.textContent = "📡 আপনার লোকেশন শেয়ার হচ্ছে...";
+  } catch (e) {
+    statusEl.textContent = "লোকেশন পাঠানো যায়নি (নেটওয়ার্ক সমস্যা?)";
+  }
+}
+
+function startSharing() {
+  if (!select.value) { alert("আগে ট্রেন সিলেক্ট করুন।"); return; }
+  if (!("geolocation" in navigator)) { alert("আপনার ব্রাউজারে GPS সাপোর্ট নেই।"); return; }
+  if (!confirm("এই ট্রেনের যাত্রী হিসেবে আপনার লোকেশন সবার সাথে শেয়ার করা হবে। চালিয়ে যাবেন?")) return;
+
+  watchId = navigator.geolocation.watchPosition(
+    pos => { myPos = pos; sendLocation(pos); },
+    err => {
+      stopSharing();
+      if (err.code === 1) alert("লোকেশন অনুমতি দেওয়া হয়নি। ফোনের GPS/Location অন করে ব্রাউজারে Allow করুন।");
+      else alert("লোকেশন পাওয়া যায়নি: " + err.message);
+    },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+  );
+  shareBtn.textContent = "শেয়ার বন্ধ করুন";
+  shareBtn.classList.add("on");
+}
+
+function stopSharing() {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  shareBtn.textContent = "আমি এই ট্রেনে আছি";
+  shareBtn.classList.remove("on");
+}
+
+shareBtn.addEventListener("click", () => watchId === null ? startSharing() : stopSharing());
+select.addEventListener("change", () => {
+  if (marker) { map.removeLayer(marker); marker = null; }
+  if (watchId !== null) stopSharing();
+  refresh();
+});
+
+loadTrains();
+setInterval(refresh, POLL_MS);
+</script>
+</body>
+</html>
