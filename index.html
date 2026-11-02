@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="bn">
 <head>
 <meta charset="UTF-8">
@@ -21,6 +21,7 @@
   <select id="trainSelect"><option value="">ট্রেন বেছে নিন...</option></select>
   <button id="shareBtn">আমি এই ট্রেনে আছি</button>
   <div id="status">একটি ট্রেন সিলেক্ট করুন।</div>
+  <div id="myStatus"></div>
 </header>
 <div id="map"></div>
 
@@ -44,7 +45,8 @@ const shareBtn = document.getElementById("shareBtn");
 const statusEl = document.getElementById("status");
 let trains = {};
 let marker = null;
-let watchId = null, lastSent = 0, myPos = null;
+let watchId = null, lastSent = 0, myPos = null, myMarker = null;
+const myStatus = document.getElementById("myStatus");
 
 // --- ট্রেনের তালিকা লোড ---
 async function loadTrains() {
@@ -99,6 +101,7 @@ async function sendLocation(pos) {
     // text/plain ব্যবহার করলে CORS preflight লাগে না
     await fetch(API_URL, {
       method: "POST",
+      mode: "no-cors", // Apps Script রিডাইরেক্টের CORS সমস্যা এড়াতে
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
         trainId: select.value,
@@ -107,9 +110,9 @@ async function sendLocation(pos) {
         speed: pos.coords.speed || 0
       })
     });
-    statusEl.textContent = "📡 আপনার লোকেশন শেয়ার হচ্ছে...";
+    myStatus.textContent = "📡 পাঠানো হয়েছে (" + new Date().toLocaleTimeString("bn-BD") + ") — Sheet-এর Locations ট্যাব দেখুন";
   } catch (e) {
-    statusEl.textContent = "লোকেশন পাঠানো যায়নি (নেটওয়ার্ক সমস্যা?)";
+    myStatus.textContent = "❌ লোকেশন পাঠানো যায়নি: " + e.message;
   }
 }
 
@@ -119,7 +122,19 @@ function startSharing() {
   if (!confirm("এই ট্রেনের যাত্রী হিসেবে আপনার লোকেশন সবার সাথে শেয়ার করা হবে। চালিয়ে যাবেন?")) return;
 
   watchId = navigator.geolocation.watchPosition(
-    pos => { myPos = pos; sendLocation(pos); },
+    pos => {
+      myPos = pos;
+      const ll = [pos.coords.latitude, pos.coords.longitude];
+      if (!myMarker) {
+        myMarker = L.circleMarker(ll, { radius: 9, color: "#1565c0", fillColor: "#42a5f5", fillOpacity: 0.9 })
+          .addTo(map).bindPopup("আপনি এখানে");
+        map.setView(ll, 13);
+      } else {
+        myMarker.setLatLng(ll);
+      }
+      myStatus.textContent = "📍 GPS পাওয়া গেছে (±" + Math.round(pos.coords.accuracy) + " মিটার)";
+      sendLocation(pos);
+    },
     err => {
       stopSharing();
       if (err.code === 1) alert("লোকেশন অনুমতি দেওয়া হয়নি। ফোনের GPS/Location অন করে ব্রাউজারে Allow করুন।");
@@ -134,6 +149,8 @@ function startSharing() {
 function stopSharing() {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
   watchId = null;
+  if (myMarker) { map.removeLayer(myMarker); myMarker = null; }
+  myStatus.textContent = "";
   shareBtn.textContent = "আমি এই ট্রেনে আছি";
   shareBtn.classList.remove("on");
 }
