@@ -3,21 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>ট্রেন ট্র্যাকার</title>
+<title>Train Locator</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; font-family: system-ui, "Noto Sans Bengali", sans-serif; overflow: hidden; }
-  #map { position: absolute; inset: 0; }
+  :root { --mb: 52px; }
+  #map { position: absolute; top: var(--mb); left: 0; right: 0; bottom: 0; }
 
-  .topbar { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 5; background: #0b5d3b; color: #fff;
+  .topbar { position: absolute; top: calc(var(--mb) + 10px); left: 10px; right: 10px; z-index: 5; background: #0b5d3b; color: #fff;
     border-radius: 22px; padding: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.3); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .topbar select { flex: 1; min-width: 0; padding: 10px; font-size: 16px; border-radius: 12px; border: 0; }
   .topbar button { padding: 10px 12px; font-size: 15px; font-weight: 700; border-radius: 12px; border: 0; background: #ffb400; cursor: pointer; }
   .topbar button.on { background: #e53935; color: #fff; }
   #status { flex-basis: 100%; font-size: 13px; }
 
-  .side { position: absolute; right: 10px; top: 118px; z-index: 5; display: flex; flex-direction: column; gap: 10px; }
+  .side { position: absolute; right: 10px; top: calc(var(--mb) + 118px); z-index: 5; display: flex; flex-direction: column; gap: 10px; }
   .side button { width: 54px; height: 54px; border-radius: 50%; border: 0; background: #fff; font-size: 17px; font-weight: 800;
     box-shadow: 0 2px 8px rgba(0,0,0,.3); cursor: pointer; color: #222; }
   .side button.active { background: #b4155a; color: #fff; }
@@ -53,12 +54,72 @@
   .pulse { width: 30px; height: 30px; border-radius: 50%; background: #b4155a; border: 3px solid #fff; display: flex; align-items: center; justify-content: center;
     font-size: 12px; box-shadow: 0 0 0 0 rgba(180,21,90,.7); animation: p 1.6s infinite; }
   @keyframes p { 70% { box-shadow: 0 0 0 16px rgba(180,21,90,0); } 100% { box-shadow: 0 0 0 0 rgba(180,21,90,0); } }
-  #err { display: none; position: absolute; top: 120px; left: 10px; right: 70px; z-index: 30; background: #b71c1c; color: #fff; border-radius: 12px; padding: 10px 12px; font-size: 13px; word-break: break-word; }
+  #err { display: none; position: absolute; top: calc(var(--mb) + 120px); left: 10px; right: 70px; z-index: 30; background: #b71c1c; color: #fff; border-radius: 12px; padding: 10px 12px; font-size: 13px; word-break: break-word; }
+
+  .menubar { position: absolute; top: 0; left: 0; right: 0; height: var(--mb); z-index: 20; background: #0b5d3b; color: #fff;
+    display: flex; align-items: center; gap: 10px; padding: 0 8px; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .menu-btn { width: 42px; height: 42px; border: 0; border-radius: 10px; background: transparent; color: #fff; font-size: 26px; line-height: 1; cursor: pointer; }
+  .menu-btn:active { background: rgba(255,255,255,.18); }
+  .menu-title { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
+
+  .drawer-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+  .drawer { position: fixed; top: 0; bottom: 0; left: 0; width: min(80vw, 300px); z-index: 50; background: #fff; transform: translateX(-104%);
+    transition: transform .25s ease; display: flex; flex-direction: column; box-shadow: 4px 0 18px rgba(0,0,0,.3); }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head { background: #0b5d3b; color: #fff; padding: 28px 16px 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .drawer-logo { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; background: #fff; border: 3px solid rgba(255,255,255,.85); }
+  .drawer-logo.fb { display: flex; align-items: center; justify-content: center; }
+  .drawer-name { font-size: 18px; font-weight: 700; }
+  .drawer-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px 20px; border: 0; border-bottom: 1px solid #eee;
+    background: #fff; font-size: 16px; text-align: left; color: #222; cursor: pointer; font-family: inherit; }
+  .drawer-item:active { background: #eef5f0; }
+  .drawer-item .ic { width: 24px; text-align: center; }
+
+  .modal { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal.open { display: flex; }
+  .modal-card { background: #fff; border-radius: 20px; width: 100%; max-width: 380px; padding: 20px 20px 14px; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+  .modal-title { font-size: 19px; font-weight: 700; color: #0b5d3b; margin-bottom: 10px; }
+  .modal-body { font-size: 15.5px; line-height: 1.65; color: #333; white-space: pre-line; max-height: 58vh; overflow-y: auto; word-break: break-word; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+  .mbtn { padding: 10px 18px; border: 0; border-radius: 12px; background: #eef1ef; color: #333; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .mbtn.primary { background: #0b5d3b; color: #fff; }
 </style>
 </head>
 <body>
+<div class="menubar">
+  <button id="menuBtn" class="menu-btn" type="button" aria-label="মেনু">&#9776;</button>
+  <div class="menu-title">Train Locator</div>
+</div>
 <div id="map"></div>
 <div id="err"></div>
+
+<div id="drawerBackdrop" class="drawer-backdrop"></div>
+<aside id="drawer" class="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <img id="drawerLogo" class="drawer-logo" alt="Train Locator" style="display:none">
+    <div id="drawerLogoFallback" class="drawer-logo fb">
+      <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
+        <rect x="16" y="10" width="32" height="38" rx="7" fill="#0b5d3b"/>
+        <rect x="21" y="16" width="22" height="13" rx="3" fill="#cfe9dc"/>
+        <circle cx="24" cy="38" r="3" fill="#ffd54f"/><circle cx="40" cy="38" r="3" fill="#ffd54f"/>
+        <path d="M20 54l5-6h14l5 6" stroke="#0b5d3b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="drawer-name">Train Locator</div>
+  </div>
+  <button id="miRules" class="drawer-item" type="button"><span class="ic">&#128220;</span>নিয়মাবলি</button>
+  <button id="miMaker" class="drawer-item" type="button"><span class="ic">&#128100;</span>প্রস্তুতকারক</button>
+  <button id="miVersion" class="drawer-item" type="button"><span class="ic">&#8505;&#65039;</span>ভার্সন ১.০</button>
+</aside>
+
+<div id="modal" class="modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-title" id="modalTitle">Train Locator</div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
 
 <div class="topbar">
   <select id="trainSelect"><option value="">ট্রেন বেছে নিন...</option></select>
@@ -92,6 +153,79 @@
 function showErr(m) { const e = document.getElementById("err"); if (e) { e.style.display = "block"; e.textContent = "⚠️ ত্রুটি: " + m; } }
 window.addEventListener("error", ev => showErr(ev.message + (ev.lineno ? " (লাইন " + ev.lineno + ")" : "")));
 window.addEventListener("unhandledrejection", ev => showErr(String(ev.reason && ev.reason.message || ev.reason)));
+
+// ====UI-BEGIN====
+// ---------- Train Locator: মডাল ও সাইড মেনু ----------
+const APP_NAME = "Train Locator";
+const APP_VERSION = "১.০";
+// লোগো: এখানে Cloudinary-র ছবির লিংক বসান (খালি থাকলে বা লিংক কাজ না করলে ছোট ট্রেনের আইকন দেখাবে)
+const LOGO_URL = "";
+
+const RULES_TEXT = `এই অ্যাপটি লোকেশন ভিত্তিক। তাই আপনি যদি ট্রেনে ভ্রমণ করেন, তাহলে "আমি এই ট্রেনে আছি" বাটনে ক্লিক করে আপনার ফোনের জিপিএস অন করার অনুমতি প্রদান করবেন। এতে উক্ত ট্রেনের লোকেশন, আপনার মোবাইলে থাকা জিপিএসের সাথে কানেক্ট হয়ে সঠিক অবস্থান দেখাবে। এছাড়া অন্য কেউ লোকেশন শেয়ার করলেও বাকি সবাই ট্রেনের লোকেশন দেখতে পাবে।
+
+আশা করি বাসায় বসে কেউ লোকেশন শেয়ার করবেন না। এতে করে সবার কাছে যেকোনো ট্রেনের ভুল লোকেশন চলে আসতে পারে।
+
+ধন্যবাদ।`;
+const MAKER_TEXT = `মুহাম্মদ রশিদুল আলম
+স্টেশন মাস্টার গ্রেড-৩
+বাংলাদেশ রেলওয়ে, চট্টগ্রাম।`;
+
+const byId = id => document.getElementById(id);
+
+// মডাল: সবসময় সারিতে একটার পর একটা দেখায়; Promise ফেরত দেয় (বোতামের value দিয়ে)
+let modalChain = Promise.resolve();
+function showModal(opts) {
+  const run = () => new Promise(resolve => {
+    const root = byId("modal"), actEl = byId("modalActions");
+    byId("modalTitle").textContent = opts.title || APP_NAME;
+    byId("modalBody").textContent = opts.message || "";
+    actEl.textContent = "";
+    let done = false, primaryBtn = null;
+    const onKey = e => { if (e.key === "Escape") { e.preventDefault(); finish(opts.cancelValue); } };
+    const finish = v => {
+      if (done) return; done = true;
+      root.classList.remove("open"); root.setAttribute("aria-hidden", "true");
+      document.removeEventListener("keydown", onKey, true);
+      resolve(v);
+    };
+    (opts.buttons || [{ label: "ঠিক আছে", value: true, primary: true }]).forEach(b => {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.textContent = b.label; btn.className = "mbtn" + (b.primary ? " primary" : "");
+      btn.addEventListener("click", () => finish(b.value));
+      actEl.appendChild(btn);
+      if (b.primary) primaryBtn = btn;
+    });
+    root.onclick = e => { if (e.target === root) finish(opts.cancelValue); };
+    document.addEventListener("keydown", onKey, true);
+    root.classList.add("open"); root.setAttribute("aria-hidden", "false");
+    if (primaryBtn) setTimeout(() => { try { primaryBtn.focus(); } catch (e) {} }, 30);
+  });
+  modalChain = modalChain.then(run, run);
+  return modalChain;
+}
+const uiAlert = (msg, title) => showModal({ title, message: msg, buttons: [{ label: "ঠিক আছে", value: true, primary: true }], cancelValue: true });
+const uiConfirm = (msg, title) => showModal({ title, message: msg, buttons: [{ label: "বাতিল", value: false }, { label: "ঠিক আছে", value: true, primary: true }], cancelValue: false });
+
+// সাইড মেনু
+const drawerEl = byId("drawer"), drawerBackdrop = byId("drawerBackdrop");
+function openDrawer() { drawerEl.classList.add("open"); drawerBackdrop.classList.add("open"); drawerEl.setAttribute("aria-hidden", "false"); }
+function closeDrawer() { drawerEl.classList.remove("open"); drawerBackdrop.classList.remove("open"); drawerEl.setAttribute("aria-hidden", "true"); }
+byId("menuBtn").addEventListener("click", openDrawer);
+drawerBackdrop.addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+byId("miRules").addEventListener("click", () => { closeDrawer(); uiAlert(RULES_TEXT, "নিয়মাবলি"); });
+byId("miMaker").addEventListener("click", () => { closeDrawer(); uiAlert(MAKER_TEXT, "প্রস্তুতকারক"); });
+byId("miVersion").addEventListener("click", () => { closeDrawer(); uiAlert(APP_NAME + "\nভার্সন " + APP_VERSION, "ভার্সন"); });
+
+// লোগো (Cloudinary)
+(function initLogo() {
+  if (!LOGO_URL) return;
+  const img = byId("drawerLogo"), fb = byId("drawerLogoFallback");
+  img.onload = () => { img.style.display = "block"; fb.style.display = "none"; };
+  img.onerror = () => { img.style.display = "none"; fb.style.display = "flex"; };
+  img.src = LOGO_URL;
+})();
+// ====UI-END====
 // ===== রেল-রুট কোর: OSM ডেটা থেকে গ্রাফ বানিয়ে চট্টগ্রাম→কক্সবাজার সবচেয়ে ছোট পথ বের করা =====
 function hav(a, b) {
   const R = 6371000, r = Math.PI / 180;
@@ -757,10 +891,15 @@ async function sendLocation(pos) {
   } catch (e) { $("myStatus").textContent = "❌ লোকেশন পাঠানো যায়নি: " + e.message; }
 }
 
-function startSharing() {
-  if (!select.value) { alert("আগে ট্রেন সিলেক্ট করুন।"); return; }
-  if (!("geolocation" in navigator)) { alert("আপনার ব্রাউজারে GPS সাপোর্ট নেই।"); return; }
-  if (!confirm("এই ট্রেনের যাত্রী হিসেবে আপনার লোকেশন সবার সাথে শেয়ার করা হবে। চালিয়ে যাবেন?")) return;
+let starting = false;
+async function startSharing() {
+  if (starting) return;
+  if (!select.value) { uiAlert("আগে ট্রেন সিলেক্ট করুন।"); return; }
+  if (!("geolocation" in navigator)) { uiAlert("আপনার ব্রাউজারে GPS সাপোর্ট নেই।"); return; }
+  starting = true;
+  const agreed = await uiConfirm("এই ট্রেনের যাত্রী হিসেবে আপনার লোকেশন সবার সাথে শেয়ার করা হবে। চালিয়ে যাবেন?");
+  starting = false;
+  if (!agreed || watchId !== null) return;
   watchId = navigator.geolocation.watchPosition(
     pos => {
       const ll = [pos.coords.longitude, pos.coords.latitude];
@@ -782,7 +921,7 @@ function startSharing() {
         "HTTPS নিরাপদ: " + window.isSecureContext,
         "অন্য পেজের ভেতরে (iframe): " + inFrame
       ];
-      const show = st => alert((err.code === 1 ? "লোকেশন অনুমতি দেওয়া হয়নি।" : "লোকেশন পাওয়া যায়নি।") + "\n\n" + info.concat(["ব্রাউজারের অনুমতি: " + st]).join("\n"));
+      const show = st => uiAlert((err.code === 1 ? "লোকেশন অনুমতি দেওয়া হয়নি।" : "লোকেশন পাওয়া যায়নি।") + "\n\n" + info.concat(["ব্রাউজারের অনুমতি: " + st]).join("\n"));
       try { navigator.permissions.query({ name: "geolocation" }).then(r => show(r.state), () => show("জানা যায়নি")); } catch (e) { show("জানা যায়নি"); }
     },
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
@@ -829,7 +968,7 @@ function exit3d() {
 }
 btn3d.addEventListener("click", () => {
   if (mode === "3d" && following) { exit3d(); return; }
-  if (!head) { alert("এই ট্রেনের লোকেশন এখনও পাওয়া যায়নি। আগে একটি ট্রেন সিলেক্ট করুন, আর কেউ লোকেশন শেয়ার করছেন কিনা দেখুন।"); return; }
+  if (!head) { uiAlert("এই ট্রেনের লোকেশন এখনও পাওয়া যায়নি। আগে একটি ট্রেন সিলেক্ট করুন, আর কেউ লোকেশন শেয়ার করছেন কিনা দেখুন।"); return; }
   mode = "3d"; following = false; flying = true;
   btn3d.classList.add("active"); btn3d.innerHTML = "2D<small>ফিরে যান</small>";
   setLayer(true);
