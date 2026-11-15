@@ -2,168 +2,707 @@
 <html lang="bn">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ট্রেন ট্র্যাকার</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>ржЯрзНрж░рзЗржи ржЯрзНрж░рзНржпрж╛ржХрж╛рж░</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: system-ui, "Noto Sans Bengali", sans-serif; display: flex; flex-direction: column; height: 100vh; }
-  header { padding: 10px; background: #0b5d3b; color: #fff; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  select, button { padding: 10px 12px; font-size: 16px; border-radius: 8px; border: 0; }
-  button { background: #ffb400; font-weight: 600; cursor: pointer; }
-  button.on { background: #e53935; color: #fff; }
-  #status { font-size: 14px; flex-basis: 100%; }
-  #map { flex: 1; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, "Noto Sans Bengali", sans-serif; overflow: hidden; }
+  #map { position: absolute; inset: 0; }
+
+  .topbar { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 5; background: #0b5d3b; color: #fff;
+    border-radius: 22px; padding: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.3); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .topbar select { flex: 1; min-width: 0; padding: 10px; font-size: 16px; border-radius: 12px; border: 0; }
+  .topbar button { padding: 10px 12px; font-size: 15px; font-weight: 700; border-radius: 12px; border: 0; background: #ffb400; cursor: pointer; }
+  .topbar button.on { background: #e53935; color: #fff; }
+  #status { flex-basis: 100%; font-size: 13px; }
+
+  .side { position: absolute; right: 10px; top: 118px; z-index: 5; display: flex; flex-direction: column; gap: 10px; }
+  .side button { width: 54px; height: 54px; border-radius: 50%; border: 0; background: #fff; font-size: 17px; font-weight: 800;
+    box-shadow: 0 2px 8px rgba(0,0,0,.3); cursor: pointer; color: #222; }
+  .side button.active { background: #b4155a; color: #fff; }
+  .side button small { display: block; font-size: 10px; font-weight: 600; }
+
+  .card { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 5; background: #fff;
+    border-radius: 24px; padding: 14px 16px; box-shadow: 0 -2px 14px rgba(0,0,0,.25); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .next { font-size: 14px; color: #666; }
+  .next b { font-size: 22px; color: #111; }
+  .speed { background: #f3f4f6; border-radius: 14px; padding: 6px 14px; text-align: center; min-width: 72px; }
+  .speed b { font-size: 24px; display: block; }
+  .speed span { font-size: 12px; color: #666; }
+  .badge { border-radius: 14px; padding: 4px 12px; font-size: 14px; font-weight: 600; background: #eee; color: #555; }
+  .badge.live { background: #e6f4ea; color: #1b7a3a; }
+  .badge.stale { background: #fff3e0; color: #b45309; }
+  .bar { position: relative; height: 6px; background: #e5e7eb; border-radius: 3px; margin: 22px 14px 4px; }
+  .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #b4155a; border-radius: 3px; }
+  .bar .dot { position: absolute; top: -9px; width: 24px; height: 24px; margin-left: -12px; border-radius: 50%; background: #b4155a; color: #fff;
+    font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .bar .end { position: absolute; right: -7px; top: -5px; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 3px solid #b4155a; }
+  .labels { display: flex; justify-content: space-between; font-size: 12px; color: #666; }
+  .labels .r { color: #b4155a; }
+  .note { font-size: 11px; color: #888; margin-top: 6px; text-align: center; }
+  #myStatus { font-size: 12px; color: #1565c0; margin-top: 6px; text-align: center; }
+
+  .st { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+  .st i { width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 3px solid #b4155a; box-shadow: 0 0 3px #000; }
+  .st span { margin-top: 2px; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; }
+  .st.osm span { color: #222; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+  .lowzoom .st span { display: none; }
+  .pulse { width: 30px; height: 30px; border-radius: 50%; background: #b4155a; border: 3px solid #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; box-shadow: 0 0 0 0 rgba(180,21,90,.7); animation: p 1.6s infinite; }
+  @keyframes p { 70% { box-shadow: 0 0 0 16px rgba(180,21,90,0); } 100% { box-shadow: 0 0 0 0 rgba(180,21,90,0); } }
+  #err { display: none; position: absolute; top: 120px; left: 10px; right: 70px; z-index: 30; background: #b71c1c; color: #fff; border-radius: 12px; padding: 10px 12px; font-size: 13px; word-break: break-word; }
 </style>
 </head>
 <body>
-<header>
-  <select id="trainSelect"><option value="">ট্রেন বেছে নিন...</option></select>
-  <button id="shareBtn">আমি এই ট্রেনে আছি</button>
-  <div id="status">একটি ট্রেন সিলেক্ট করুন।</div>
-  <div id="myStatus"></div>
-</header>
 <div id="map"></div>
+<div id="err"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div class="topbar">
+  <select id="trainSelect"><option value="">ржЯрзНрж░рзЗржи ржмрзЗржЫрзЗ ржирж┐ржи...</option></select>
+  <button id="shareBtn">ржЖржорж┐ ржПржЗ ржЯрзНрж░рзЗржирзЗ ржЖржЫрж┐</button>
+  <div id="status">ржПржХржЯрж┐ ржЯрзНрж░рзЗржи рж╕рж┐рж▓рзЗржХрзНржЯ ржХрж░рзБржиред</div>
+</div>
+
+<div class="side">
+  <button id="btn3d" title="рзйржбрж┐ ржнрж┐ржЙ">3D<small>ржЯрзНрж░рзЗржирзЗ ржЬрзБржо</small></button>
+  <button id="btnLayer" title="ржорзНржпрж╛ржк ржмржжрж▓">ЁЯЫ░я╕П<small>рж╕рзНржпрж╛ржЯрзЗрж▓рж╛ржЗржЯ</small></button>
+</div>
+
+<div class="card">
+  <div class="row">
+    <div class="next">ржкрж░ржмрж░рзНрждрзА <b id="nextName">тАФ</b> <span id="nextDist"></span></div>
+    <div class="speed"><b id="spd">рзж</b><span>ржХрж┐/ржШ</span></div>
+  </div>
+  <div class="row" style="margin-top:6px"><span class="badge" id="liveBadge">ржЯрзНрж░рзЗржи рж╕рж┐рж▓рзЗржХрзНржЯ ржХрж░рзБржи</span></div>
+  <div id="barWrap">
+    <div class="bar"><div class="fill" id="fill"></div><div class="dot" id="dot">ЁЯЪЖ</div><div class="end"></div></div>
+    <div class="labels"><span id="prevName"></span><span class="r" id="nextName2"></span></div>
+  </div>
+  <div id="myStatus"></div>
+  <div class="note" id="noteTxt"></div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <script>
-// ====== এখানে আপনার Apps Script Web App URL বসান ======
+function showErr(m) { const e = document.getElementById("err"); if (e) { e.style.display = "block"; e.textContent = "тЪая╕П рждрзНрж░рзБржЯрж┐: " + m; } }
+window.addEventListener("error", ev => showErr(ev.message + (ev.lineno ? " (рж▓рж╛ржЗржи " + ev.lineno + ")" : "")));
+window.addEventListener("unhandledrejection", ev => showErr(String(ev.reason && ev.reason.message || ev.reason)));
+// ===== рж░рзЗрж▓-рж░рзБржЯ ржХрзЛрж░: OSM ржбрзЗржЯрж╛ ржерзЗржХрзЗ ржЧрзНрж░рж╛ржл ржмрж╛ржирж┐ржпрж╝рзЗ ржЪржЯрзНржЯржЧрзНрж░рж╛ржотЖТржХржХрзНрж╕ржмрж╛ржЬрж╛рж░ рж╕ржмржЪрзЗржпрж╝рзЗ ржЫрзЛржЯ ржкрже ржмрзЗрж░ ржХрж░рж╛ =====
+function hav(a, b) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * r, dLon = (b[0] - a[0]) * r;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function buildGraph(elements) {
+  const map = new Map(), pts = [], adj = [];
+  const nid = (id, lat, lon) => {
+    let i = map.get(id);
+    if (i === undefined) { i = pts.length; map.set(id, i); pts.push([lon, lat]); adj.push([]); }
+    return i;
+  };
+  for (const el of elements) {
+    if (el.type !== "way" || !el.geometry || !el.nodes) continue;
+    let prev = null;
+    for (let k = 0; k < el.nodes.length; k++) {
+      const g = el.geometry[k];
+      if (!g) { prev = null; continue; }
+      const i = nid(el.nodes[k], g.lat, g.lon);
+      if (prev !== null && prev !== i) {
+        const w = hav(pts[prev], pts[i]);
+        adj[prev].push([i, w]); adj[i].push([prev, w]);
+      }
+      prev = i;
+    }
+  }
+  return { pts, adj };
+}
+
+function largestComponent(adj) {
+  const n = adj.length, comp = new Int32Array(n).fill(-1);
+  let best = -1, bestSize = 0, c = 0;
+  for (let s = 0; s < n; s++) {
+    if (comp[s] !== -1) continue;
+    let size = 0; const stack = [s]; comp[s] = c;
+    while (stack.length) {
+      const u = stack.pop(); size++;
+      for (const [v] of adj[u]) if (comp[v] === -1) { comp[v] = c; stack.push(v); }
+    }
+    if (size > bestSize) { bestSize = size; best = c; }
+    c++;
+  }
+  return { comp, best };
+}
+
+function nearestNode(pts, comp, best, c) {
+  let bi = -1, bd = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    if (comp[i] !== best) continue;
+    const dx = (pts[i][0] - c[0]) * Math.cos(c[1] * Math.PI / 180), dy = pts[i][1] - c[1];
+    const d = dx * dx + dy * dy;
+    if (d < bd) { bd = d; bi = i; }
+  }
+  return bi;
+}
+
+class MinHeap {
+  constructor() { this.a = []; }
+  get size() { return this.a.length; }
+  push(item) {
+    const a = this.a; a.push(item); let i = a.length - 1;
+    while (i > 0) { const p = (i - 1) >> 1; if (a[p][0] <= a[i][0]) break; [a[p], a[i]] = [a[i], a[p]]; i = p; }
+  }
+  pop() {
+    const a = this.a, top = a[0], last = a.pop();
+    if (a.length) {
+      a[0] = last; let i = 0;
+      for (;;) {
+        let l = 2 * i + 1, r = l + 1, m = i;
+        if (l < a.length && a[l][0] < a[m][0]) m = l;
+        if (r < a.length && a[r][0] < a[m][0]) m = r;
+        if (m === i) break; [a[m], a[i]] = [a[i], a[m]]; i = m;
+      }
+    }
+    return top;
+  }
+}
+
+function dijkstra(adj, s, t) {
+  const n = adj.length, dist = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1);
+  const h = new MinHeap(); dist[s] = 0; h.push([0, s]);
+  while (h.size) {
+    const [d, u] = h.pop();
+    if (d > dist[u]) continue;
+    if (u === t) break;
+    for (const [v, w] of adj[u]) {
+      const nd = d + w;
+      if (nd < dist[v]) { dist[v] = nd; prev[v] = u; h.push([nd, v]); }
+    }
+  }
+  if (!isFinite(dist[t])) return null;
+  const path = []; for (let u = t; u !== -1; u = prev[u]) path.push(u);
+  return path.reverse();
+}
+
+// elements = Overpass JSON ржПрж░ elements; ржлрзЗрж░ржд: {coords, stationsRaw} ржмрж╛ null
+function extractRoute(elements, startApprox, endApprox) {
+  const stationsAll = elements
+    .filter(e => e.type === "node" && e.tags && /^(station|halt)$/.test(e.tags.railway || ""))
+    .map(e => ({ name: e.tags["name:bn"] || e.tags.name || "", en: e.tags["name:en"] || e.tags.name || "", c: [e.lon, e.lat] }))
+    .filter(s => s.name);
+
+  const pick = (re, approx) => {
+    const m = stationsAll.filter(s => re.test(s.name) || re.test(s.en));
+    if (!m.length) return approx;
+    m.sort((a, b) => hav(a.c, approx) - hav(b.c, approx));
+    return hav(m[0].c, approx) < 25000 ? m[0].c : approx;
+  };
+  const startC = pick(/ржЪржЯрзНржЯржЧрзНрж░рж╛ржо|Chattogram|Chittagong/i, startApprox);
+  const endC = pick(/ржХржХрзНрж╕ржмрж╛ржЬрж╛рж░|Cox/i, endApprox);
+
+  const { pts, adj } = buildGraph(elements);
+  if (pts.length < 2) return null;
+  const { comp, best } = largestComponent(adj);
+  const s = nearestNode(pts, comp, best, startC), t = nearestNode(pts, comp, best, endC);
+  if (s < 0 || t < 0 || s === t) return null;
+  const path = dijkstra(adj, s, t);
+  if (!path || path.length < 2) return null;
+  return { coords: path.map(i => pts[i]), stationsRaw: stationsAll };
+}
+
+function makeIndex(coords) {
+  const cum = [0];
+  for (let i = 1; i < coords.length; i++) cum.push(cum[i - 1] + hav(coords[i - 1], coords[i]));
+  const total = cum[cum.length - 1];
+  function pointAt(d) {
+    d = Math.max(0, Math.min(total, d));
+    let lo = 0, hi = cum.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= d) lo = m; else hi = m; }
+    const seg = cum[hi] - cum[lo], t = seg > 0 ? (d - cum[lo]) / seg : 0;
+    return [coords[lo][0] + (coords[hi][0] - coords[lo][0]) * t, coords[lo][1] + (coords[hi][1] - coords[lo][1]) * t];
+  }
+  return { cum, total, pointAt };
+}
+
+// рж░рзБржЯрзЗрж░ рззрзжрзжрзж ржорж┐ржЯрж╛рж░рзЗрж░ ржоржзрзНржпрзЗрж░ рж╕рзНржЯрзЗрж╢ржиржЧрзБрж▓рзЛ рж░рзБржЯ ржмрж░рж╛ржмрж░ рж╕рж╛ржЬрж╛ржирзЛ
+function snapStations(coords, idx, raw) {
+  const out = [];
+  for (const s of raw) {
+    let bi = -1, bd = Infinity;
+    for (let i = 0; i < coords.length; i++) {
+      const dx = (coords[i][0] - s.c[0]) * Math.cos(s.c[1] * Math.PI / 180), dy = coords[i][1] - s.c[1];
+      const d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; bi = i; }
+    }
+    if (Math.sqrt(bd) * 111320 <= 1000) out.push({ name: s.name, c: s.c, d: idx.cum[bi] });
+  }
+  out.sort((a, b) => a.d - b.d);
+  const res = [];
+  for (const s of out) {
+    const last = res[res.length - 1];
+    if (last && (last.name === s.name || s.d - last.d < 300)) continue;
+    res.push(s);
+  }
+  return res;
+}
+
+// GPS ржмрж┐ржирзНржжрзБржХрзЗ рж░рзЗрж▓рж▓рж╛ржЗржирзЗрж░ ржирж┐ржХржЯрждржо ржмрж┐ржирзНржжрзБрждрзЗ ржмрж╕рж╛ржирзЛ; ржлрзЗрж░ржд {d: рж╢рзБрж░рзБ ржерзЗржХрзЗ ржжрзВрж░рждрзНржм(ржорж┐ржЯрж╛рж░), off: рж▓рж╛ржЗржи ржерзЗржХрзЗ ржмрзНржпржмржзрж╛ржи(ржорж┐ржЯрж╛рж░)}
+// hintD ржжрж┐рж▓рзЗ рж╢рзБржзрзБ рждрж╛рж░ ┬▒win ржорж┐ржЯрж╛рж░рзЗрж░ ржоржзрзНржпрзЗ ржЦрзЛржБржЬрзЗ (ржжрзНрж░рзБржд ржУ рж▓рж╛ржл-ржорзБржХрзНржд)
+function snapToRoute(coords, cum, p, hintD, win) {
+  const cos = Math.cos(p[1] * Math.PI / 180), k = 111320;
+  let best = null;
+  for (let i = 0; i < coords.length - 1; i++) {
+    if (hintD != null && (cum[i + 1] < hintD - win || cum[i] > hintD + win)) continue;
+    const ax = (coords[i][0] - p[0]) * cos * k, ay = (coords[i][1] - p[1]) * k;
+    const bx = (coords[i + 1][0] - p[0]) * cos * k, by = (coords[i + 1][1] - p[1]) * k;
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    const t = L2 > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L2)) : 0;
+    const off = Math.hypot(ax + t * dx, ay + t * dy);
+    if (!best || off < best.off) best = { off, d: cum[i] + t * (cum[i + 1] - cum[i]) };
+  }
+  return best;
+}
+
+
+
+
+// ====== ржПржЦрж╛ржирзЗ ржЖржкржирж╛рж░ Apps Script Web App URL ======
 const API_URL = "https://script.google.com/macros/s/AKfycbwiU2NeLwnjB379Ko8B9wFtSBbYbYgZa1yLSge4x0yAnDtBHo8wSF2JbRBDjizd-vk6sA/exec";
-// =======================================================
+// ==================================================
 
-const POLL_MS = 10000;        // ম্যাপ রিফ্রেশ: ১০ সেকেন্ড
-const SEND_MS = 10000;        // লোকেশন পাঠানো: ১০ সেকেন্ড
-const STALE_MS = 5 * 60000;   // ৫ মিনিটের পুরনো ডেটা = "পুরনো"
+const POLL_MS = 6000;          // ржорзНржпрж╛ржкрзЗрж░ ржбрзЗржЯрж╛ ржЖржирж╛
+const SEND_MS = 10000;         // ржпрж╛рждрзНрж░рзАрж░ рж▓рзЛржХрзЗрж╢ржи ржкрж╛ржарж╛ржирзЛ
+const STALE_MS = 5 * 60000;    // ржПрж░ ржмрзЗрж╢рж┐ ржкрзБрж░ржирзЛ = "ржкрзБрж░ржирзЛ рждржерзНржп"
+const EXTRAP_MAX = 25;         // ржирждрзБржи рждржерзНржп ржирж╛ ржПрж▓рзЗ рж╕рж░рзНржмрзЛржЪрзНржЪ ржХржд рж╕рзЗржХрзЗржирзНржб ржЖржирзНржжрж╛ржЬрзЗ ржПржЧрзЛржмрзЗ
+const OFF_ROUTE = 400;         // рж░рзЗрж▓рж▓рж╛ржЗржи ржерзЗржХрзЗ ржПржд ржорж┐ржЯрж╛рж░рзЗрж░ ржмрзЗрж╢рж┐ ржжрзВрж░рзЗ рж╣рж▓рзЗ рж▓рж╛ржЗржирзЗ ржмрж╕рж╛ржирзЛ рж╣ржпрж╝ ржирж╛
 
-const map = L.map("map").setView([23.8, 90.4], 7);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 18, attribution: "© OpenStreetMap"
-}).addTo(map);
+const START_APPROX = [91.8310, 22.3560], END_APPROX = [91.9830, 21.4430];
 
-const select = document.getElementById("trainSelect");
-const shareBtn = document.getElementById("shareBtn");
-const statusEl = document.getElementById("status");
-let trains = {};
-let marker = null;
-let watchId = null, lastSent = 0, myPos = null, myMarker = null;
-const myStatus = document.getElementById("myStatus");
+// ---------- OSM рж░рзЗрж▓рж▓рж╛ржЗржи (ржЪржЯрзНржЯржЧрзНрж░рж╛ржотАУржХржХрзНрж╕ржмрж╛ржЬрж╛рж░) ----------
+const OVERPASS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+];
+const QUERY = '[out:json][timeout:60];(' +
+  'way["railway"="rail"]["service"!~"siding|yard|spur|crossover"](21.38,91.78,22.42,92.15);' +
+  'node["railway"~"^(station|halt)$"](21.38,91.78,22.42,92.15););out geom;';
+const CACHE_KEY = "railcache_ctg_coxs_v1";
 
-// --- ট্রেনের তালিকা লোড ---
+async function fetchOverpass() {
+  for (const url of OVERPASS) {
+    try {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 45000);
+      const res = await fetch(url, { method: "POST", signal: ctl.signal,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "data=" + encodeURIComponent(QUERY) });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (json && json.elements && json.elements.length) return json.elements;
+    } catch (e) { /* ржкрж░рзЗрж░ рж╕рж╛рж░рзНржнрж╛рж░ */ }
+  }
+  return null;
+}
+async function getRail() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    if (cached && cached.coords && cached.coords.length > 50) return cached;
+  } catch (e) {}
+  const elements = await fetchOverpass();
+  if (!elements) return null;
+  const r = extractRoute(elements, START_APPROX, END_APPROX);
+  if (!r) return null;
+  const q = p => [Math.round(p[0] * 1e5) / 1e5, Math.round(p[1] * 1e5) / 1e5];
+  const out = { coords: r.coords.map(q), stationsRaw: r.stationsRaw.map(s => ({ name: s.name, en: s.en, c: q(s.c) })) };
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(out)); } catch (e) {}
+  return out;
+}
+
+// ---------- рж╕рж╛ржзрж╛рж░ржг ----------
+const $ = id => document.getElementById(id);
+const bnDigits = "рзжрззрзирзйрзкрзлрзмрзнрзорзп";
+const bn = x => String(x).replace(/[0-9]/g, d => bnDigits[d]);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerpAngle = (a, b, t) => a + (((b - a + 540) % 360) - 180) * t;
+const fmtAge = s => s < 60 ? bn(Math.round(s)) + " рж╕рзЗ" : s < 3600 ? bn(Math.round(s / 60)) + " ржорж┐ржирж┐ржЯ" : bn(Math.round(s / 3600)) + " ржШржгрзНржЯрж╛";
+
+// ---------- рж░рзБржЯ ржЕржмрж╕рзНржерж╛ (ржкрж░рзЗ рж▓рзЛржб рж╣ржпрж╝) ----------
+let routeCoords = null, idx = null, route = null, total = 0, stations = [];
+const pointAt = d => idx.pointAt(d);
+const bearingAt = d => turf.bearing(pointAt(d - 15), pointAt(d + 15));
+
+// ---------- ржорзНржпрж╛ржк ----------
+const SAT = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const map = new maplibregl.Map({
+  container: "map", center: [90.4, 23.7], zoom: 6.2, maxPitch: 80,
+  style: { version: 8,
+    sources: {
+      osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, maxzoom: 19, attribution: "┬й OpenStreetMap" },
+      sat: { type: "raster", tiles: [SAT], tileSize: 256, maxzoom: 18, attribution: "Imagery ┬й Esri, Maxar, Earthstar Geographics" } },
+    layers: [
+      { id: "osm", type: "raster", source: "osm" },
+      { id: "sat", type: "raster", source: "sat", layout: { visibility: "none" } } ] }
+});
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
+map.on("zoom", () => document.body.classList.toggle("lowzoom", map.getZoom() < 10.5));
+let mapLoaded = false, routeLayersAdded = false;
+
+// ---------- ржЯрзНрж░рзЗржирзЗрж░ ржЧржаржи ----------
+const UNITS = [{ len: 20, h: 4.4, color: "#b4155a" }];
+for (let i = 0; i < 7; i++) UNITS.push({ len: 22, h: 4.0, color: i % 2 ? "#d9dce3" : "#eceef2" });
+const GAP = 1.5, WIDTH = 3.2;
+const TRAIN_LEN = UNITS.reduce((a, u) => a + u.len + GAP, 0);
+
+// ---------- рж▓рж╛ржЗржн ржЕржмрж╕рзНржерж╛ ----------
+let trains = {}, selId = "";
+let fix = null;         // рж╕рж░рзНржмрж╢рзЗрж╖ ржЬрж╛ржирж╛ ржЕржмрж╕рзНржерж╛ржи
+let head = null;        // ржкрж░рзНржжрж╛ржпрж╝ ржжрзЗржЦрж╛ржирзЛ ржЯрзНрж░рзЗржирзЗрж░ ржорж╛ржерж╛ (ржорж╕рзГржг)
+let dirSign = 1;        // +рзз = рж░рзБржЯрзЗрж░ рж╢рзБрж░рзБ ржерзЗржХрзЗ рж╢рзЗрж╖рзЗрж░ ржжрж┐ржХрзЗ
+let live = { has: false, ageMs: 0, recv: 0, n: 0 };
+let lastLoc = null, lastNow = 0;
+let mode = "2d", following = false, flying = false, camBearing = 0;
+let pollBusy = false;
+
+// ржкрж┐ржЫржирзЗрж░ ржжрж┐ржХрзЗ off ржорж┐ржЯрж╛рж░ ржжрзВрж░рзЗрж░ ржмрж┐ржирзНржжрзБ ржУ ржжрж┐ржХ
+function back(off) {
+  if (head.d != null) {
+    const dc = head.d - dirSign * off;
+    return { ll: pointAt(dc), b: bearingAt(dc) };
+  }
+  const c = turf.destination(turf.point(head.ll), off, head.heading + 180, { units: "meters" });
+  return { ll: c.geometry.coordinates, b: head.heading };
+}
+
+function trainFeatures() {
+  const feats = [];
+  let cursor = 0;
+  UNITS.forEach(u => {
+    const { ll, b } = back(cursor + u.len / 2);
+    const c = turf.point(ll);
+    const f = turf.destination(c, u.len / 2, b, { units: "meters" });
+    const k = turf.destination(c, u.len / 2, b + 180, { units: "meters" });
+    const corners = [
+      turf.destination(f, WIDTH / 2, b + 90, { units: "meters" }).geometry.coordinates,
+      turf.destination(f, WIDTH / 2, b - 90, { units: "meters" }).geometry.coordinates,
+      turf.destination(k, WIDTH / 2, b - 90, { units: "meters" }).geometry.coordinates,
+      turf.destination(k, WIDTH / 2, b + 90, { units: "meters" }).geometry.coordinates ];
+    corners.push(corners[0]);
+    feats.push({ type: "Feature", properties: { h: u.h, color: u.color }, geometry: { type: "Polygon", coordinates: [corners] } });
+    cursor += u.len + GAP;
+  });
+  return { type: "FeatureCollection", features: feats };
+}
+function trainLine() {
+  const cs = [];
+  for (let i = 0; i <= 12; i++) cs.push(back(TRAIN_LEN * i / 12).ll);
+  return { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: cs } };
+}
+const EMPTY = { type: "FeatureCollection", features: [] };
+
+const pulseEl = document.createElement("div"); pulseEl.className = "pulse"; pulseEl.textContent = "ЁЯЪЖ";
+const pulseMarker = new maplibregl.Marker({ element: pulseEl });
+let pulseAdded = false;
+
+map.on("load", () => {
+  map.addSource("train", { type: "geojson", data: EMPTY });
+  map.addLayer({ id: "train", type: "fill-extrusion", source: "train", paint: {
+    "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": 0.6, "fill-extrusion-opacity": 1 } });
+  map.addSource("trainline", { type: "geojson", data: EMPTY });
+  map.addLayer({ id: "trainline-casing", type: "line", source: "trainline", paint: { "line-color": "#ffffff", "line-width": 9 } });
+  map.addLayer({ id: "trainline", type: "line", source: "trainline", paint: { "line-color": "#b4155a", "line-width": 5.5 } });
+  mapLoaded = true;
+  addRouteLayers();
+});
+
+// рж░рзЗрж▓рж▓рж╛ржЗржи ржУ рж╕рзНржЯрзЗрж╢ржи ржорзНржпрж╛ржкрзЗ ржмрж╕рж╛ржирзЛ (ржорзНржпрж╛ржк ржУ рж░рзБржЯ ржжрзБржЯрзЛржЗ рждрзИрж░рж┐ рж╣рж▓рзЗ)
+function addRouteLayers() {
+  if (!mapLoaded || !route || routeLayersAdded) return;
+  routeLayersAdded = true;
+  map.addSource("route", { type: "geojson", data: route });
+  map.addLayer({ id: "route-casing", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": 0.9 } }, "train");
+  map.addLayer({ id: "route-line", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#d81b6a", "line-width": 3.5 } }, "train");
+  stations.forEach(s => {
+    const el = document.createElement("div");
+    el.className = "st" + (btnLayer.dataset.sat ? "" : " osm");
+    el.innerHTML = "<i></i><span></span>"; el.lastChild.textContent = s.name;
+    s.el = el;
+    new maplibregl.Marker({ element: el }).setLngLat(s.c).addTo(map);
+  });
+}
+
+// ---------- рж░рзЗрж▓рж▓рж╛ржЗржи рж▓рзЛржб (ржкрзЗржЫржирзЗ ржЪрж▓рзЗ, ржЕрзНржпрж╛ржк ржЖржЯржХрж╛ржпрж╝ ржирж╛) ----------
+$("noteTxt").textContent = "рж░рзЗрж▓рж▓рж╛ржЗржирзЗрж░ ржбрзЗржЯрж╛ рж▓рзЛржб рж╣ржЪрзНржЫрзЗтАж";
+(async () => {
+  let rail = null;
+  try { rail = await getRail(); } catch (e) {}
+  if (!rail) { $("noteTxt").textContent = "рж░рзЗрж▓рж▓рж╛ржЗржирзЗрж░ ржбрзЗржЯрж╛ ржЖржирж╛ ржпрж╛ржпрж╝ржирж┐; ржЯрзНрж░рзЗржи рж╕рж░рж╛рж╕рж░рж┐ GPS ржЕржмрж╕рзНржерж╛ржирзЗ ржжрзЗржЦрж╛ржирзЛ рж╣ржмрзЗред"; return; }
+  routeCoords = rail.coords;
+  idx = makeIndex(routeCoords); total = idx.total;
+  route = turf.lineString(routeCoords);
+  stations = snapStations(routeCoords, idx, rail.stationsRaw);
+  $("noteTxt").textContent = "рж░рзБржЯ ржУ рж╕рзНржЯрзЗрж╢ржи: OpenStreetMap";
+  addRouteLayers();
+  if (lastLoc) onLocation(lastLoc, lastNow, true); // ржЖржЧрзЗ ржЖрж╕рж╛ ржЕржмрж╕рзНржерж╛ржи ржирждрзБржи рж░рзБржЯрзЗ ржмрж╕рж╛ржЗ
+})();
+
+// ---------- ржЯрзНрж░рзЗржирзЗрж░ рждрж╛рж▓рж┐ржХрж╛ ----------
+const select = $("trainSelect");
 async function loadTrains() {
   try {
     const res = await fetch(API_URL + "?action=trains");
     const data = await res.json();
-    data.trains.forEach(t => {
-      trains[t.id] = t;
-      select.add(new Option(t.name + (t.route ? " (" + t.route + ")" : ""), t.id));
-    });
-  } catch (e) {
-    statusEl.textContent = "ট্রেনের তালিকা লোড হয়নি। API_URL ঠিক আছে কিনা দেখুন।";
+    data.trains.forEach(t => { trains[t.id] = t; select.add(new Option(t.name + (t.route ? " (" + t.route + ")" : ""), t.id)); });
+  } catch (e) { $("status").textContent = "ржЯрзНрж░рзЗржирзЗрж░ рждрж╛рж▓рж┐ржХрж╛ рж▓рзЛржб рж╣ржпрж╝ржирж┐ред API_URL ржарж┐ржХ ржЖржЫрзЗ ржХрж┐ржирж╛ ржжрзЗржЦрзБржиред"; }
+}
+
+// ---------- ржирждрзБржи ржЕржмрж╕рзНржерж╛ржи ржкрзЗрж▓рзЗ ----------
+function onLocation(loc, nowSrv, force) {
+  lastLoc = loc; lastNow = nowSrv;
+  const ageMs = Math.max(0, nowSrv - loc.time);
+  live = { has: true, ageMs, recv: performance.now(), n: loc.n || 1 };
+  if (!force && fix && fix.serverTime === loc.time) return;   // ржирждрзБржи ржХрж┐ржЫрзБ ржЖрж╕рзЗржирж┐
+
+  const ll = [Number(loc.lng), Number(loc.lat)];
+  if (!isFinite(ll[0]) || !isFinite(ll[1])) return;
+
+  // рж░рзЗрж▓рж▓рж╛ржЗржирзЗ ржмрж╕рж╛ржирзЛ (ржжрзВрж░рзЗ рж╣рж▓рзЗ d = null тЖТ рж╕рж░рж╛рж╕рж░рж┐ GPS ржорзЛржб)
+  let d = null;
+  if (routeCoords) {
+    let s = (fix && fix.d != null) ? snapToRoute(routeCoords, idx.cum, ll, fix.d, 6000) : null;
+    if (!s || s.off > OFF_ROUTE) s = snapToRoute(routeCoords, idx.cum, ll, null, 0);
+    if (s && s.off <= OFF_ROUTE) d = s.d;
+  }
+
+  // ржЧрждрж┐ ржЕржирзБржорж╛ржи (ржжрзБржЗ рждржерзНржпрзЗрж░ ржорж╛ржЭрзЗрж░ ржкрж╛рж░рзНржержХрзНржп ржерзЗржХрзЗ; ржорж╕рзГржг ржХрж░рж╛)
+  let v = 0, vx = 0, vy = 0;
+  if (fix && !force && loc.time > fix.serverTime) {
+    const dt = (loc.time - fix.serverTime) / 1000;
+    if (dt >= 2 && dt <= 120) {
+      if (d != null && fix.d != null) {
+        const step = d - fix.d;
+        v = Math.abs(step) < 8 ? 0 : clamp(step / dt, -45, 45);
+        v = 0.6 * v + 0.4 * fix.v;
+      } else if (d == null && fix.d == null) {
+        const m = hav(fix.ll, ll);
+        if (m >= 8 && m / dt <= 45) { vx = (ll[0] - fix.ll[0]) / dt; vy = (ll[1] - fix.ll[1]) / dt; v = m / dt; }
+        vx = 0.6 * vx + 0.4 * fix.vx; vy = 0.6 * vy + 0.4 * fix.vy;
+        v = 0.6 * v + 0.4 * fix.v;
+      }
+    }
+  }
+  fix = { serverTime: loc.time, tLocal: performance.now() - ageMs, ll, d, v, vx, vy, gps: Number(loc.speed) || 0 };
+  if (d != null && Math.abs(v) > 1) dirSign = v >= 0 ? 1 : -1;
+
+  if (!head) { // ржкрзНрж░ржержо ржЕржмрж╕рзНржерж╛ржи: рж╕рзЛржЬрж╛ рж╕рзЗржЦрж╛ржирзЗ
+    head = { ll, d, heading: undefined };
+    if (mode === "2d") map.flyTo({ center: ll, zoom: 12, duration: 1800 });
   }
 }
 
-// --- সিলেক্ট করা ট্রেনের লোকেশন আনা ---
-async function refresh() {
-  const id = select.value;
-  if (!id) return;
+// ---------- ржкрзНрж░рждрж┐ ржлрзНрж░рзЗржорзЗ ржорж╕рзГржгржнрж╛ржмрзЗ ржПржЧрзЛржирзЛ ----------
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  try { step(now, dt); } catch (e) { showErr(e.message); }
+  updateCard(now);
+  requestAnimationFrame(tick);
+}
+
+function step(now, dt) {
+  if (!fix || !head || !mapLoaded) return;
+  const age = Math.min(EXTRAP_MAX, (now - fix.tLocal) / 1000);
+  const k = 1 - Math.exp(-dt / 0.8);
+
+  if (fix.d != null) {                                  // рж░рзЗрж▓рж▓рж╛ржЗржи ржорзЛржб
+    const tgt = clamp(fix.d + fix.v * age, 0, total);
+    if (head.d == null || Math.abs(tgt - head.d) > 3000) head.d = tgt; else head.d += (tgt - head.d) * k;
+    head.ll = pointAt(head.d);
+    const tb = bearingAt(head.d) + (dirSign < 0 ? 180 : 0);
+    head.heading = head.heading === undefined ? tb : lerpAngle(head.heading, tb, 1 - Math.exp(-dt / 0.5));
+  } else {                                              // рж╕рж░рж╛рж╕рж░рж┐ GPS ржорзЛржб
+    const tgt = [fix.ll[0] + fix.vx * age, fix.ll[1] + fix.vy * age];
+    if (head.d != null || hav(head.ll, tgt) > 3000) { head.ll = tgt; head.d = null; }
+    else head.ll = [head.ll[0] + (tgt[0] - head.ll[0]) * k, head.ll[1] + (tgt[1] - head.ll[1]) * k];
+    if (fix.v > 1) {
+      const tb = turf.bearing(fix.ll, [fix.ll[0] + fix.vx, fix.ll[1] + fix.vy]);
+      head.heading = head.heading === undefined ? tb : lerpAngle(head.heading, tb, 1 - Math.exp(-dt / 0.8));
+    } else if (head.heading === undefined) head.heading = 0;
+  }
+
+  map.getSource("train").setData(trainFeatures());
+  map.getSource("trainline").setData(trainLine());
+  if (!pulseAdded) { pulseMarker.setLngLat(head.ll).addTo(map); pulseAdded = true; } else pulseMarker.setLngLat(head.ll);
+  pulseEl.style.display = map.getZoom() < 15.5 ? "flex" : "none";
+
+  if (mode === "3d" && following && !flying) {
+    camBearing = lerpAngle(camBearing, head.heading, 0.04);
+    map.jumpTo({ center: head.ll, bearing: camBearing, pitch: 68, zoom: 16.8, padding: { top: 0, bottom: 230, left: 0, right: 0 } });
+  }
+}
+
+function updateCard(now) {
+  // рж▓рж╛ржЗржн ржмрзНржпрж╛ржЬ
+  const badge = $("liveBadge");
+  if (!selId) { badge.className = "badge"; badge.textContent = "ржЯрзНрж░рзЗржи рж╕рж┐рж▓рзЗржХрзНржЯ ржХрж░рзБржи"; }
+  else if (!live.has) { badge.className = "badge"; badge.textContent = "ржПржЗ ржЯрзНрж░рзЗржирзЗрж░ рж▓рзЛржХрзЗрж╢ржи ржХрзЗржЙ рж╢рзЗржпрж╝рж╛рж░ ржХрж░рзЗржиржирж┐"; }
+  else {
+    const ageS = (live.ageMs + (now - live.recv)) / 1000;
+    const stale = ageS * 1000 > STALE_MS;
+    badge.className = "badge " + (stale ? "stale" : "live");
+    badge.textContent = (stale ? "тЪая╕П ржкрзБрж░ржирзЛ рждржерзНржп ┬╖ " : "тЧП рж▓рж╛ржЗржн ┬╖ ") + fmtAge(ageS) + " ржЖржЧрзЗ" + (live.n > 1 ? " ┬╖ " + bn(live.n) + " ржЬржирзЗрж░ рждржерзНржп" : "");
+  }
+  // ржЧрждрж┐
+  if (fix) {
+    let kmh = Math.abs(fix.v) * 3.6;
+    if (kmh < 1 && fix.gps > 0.5) kmh = fix.gps * 3.6;
+    $("spd").textContent = bn(Math.round(kmh));
+  } else $("spd").textContent = bn(0);
+
+  // рж╕рзНржЯрзЗрж╢ржи ржУ ржЕржЧрзНрж░ржЧрждрж┐ (рж╢рзБржзрзБ рж░рзЗрж▓рж▓рж╛ржЗржи ржорзЛржбрзЗ)
+  const onRoute = head && head.d != null && stations.length >= 2;
+  $("barWrap").style.display = onRoute ? "block" : "none";
+  if (!onRoute) {
+    $("nextName").textContent = head ? "тАФ" : "тАФ"; $("nextDist").textContent = "";
+    return;
+  }
+  let ni;
+  if (dirSign >= 0) { ni = stations.findIndex(s => s.d > head.d); if (ni === -1) ni = stations.length - 1; }
+  else { ni = -1; stations.forEach((s, i) => { if (s.d < head.d) ni = i; }); if (ni === -1) ni = 0; }
+  const next = stations[ni], prev = stations[clamp(ni - dirSign, 0, stations.length - 1)];
+  const remain = Math.abs(next.d - head.d);
+  $("nextName").textContent = next.name;
+  $("nextDist").textContent = "(" + (remain >= 1000 ? bn(Math.round(remain / 1000)) + " ржХрж┐" : bn(Math.round(remain)) + " ржорж┐") + ")";
+  $("prevName").textContent = prev.name; $("nextName2").textContent = next.name;
+  const frac = clamp(Math.abs(head.d - prev.d) / Math.max(1, Math.abs(next.d - prev.d)), 0, 1);
+  $("fill").style.width = (frac * 100) + "%"; $("dot").style.left = (frac * 100) + "%";
+}
+
+// ---------- рж╕рж╛рж░рзНржнрж╛рж░ ржерзЗржХрзЗ рж▓рзЛржХрзЗрж╢ржи ржЖржирж╛ ----------
+async function poll() {
+  if (!selId || pollBusy) return;
+  pollBusy = true;
+  const myId = selId;
   try {
-    const res = await fetch(API_URL + "?action=locations");
+    const res = await fetch(API_URL + "?action=locations&_=" + Date.now());
     const data = await res.json();
-    const loc = data.locations[id];
-    if (!loc) {
-      statusEl.textContent = "এই ট্রেনের লোকেশন এখনও কেউ শেয়ার করেননি।";
-      if (marker) { map.removeLayer(marker); marker = null; }
-      return;
-    }
-    const ageSec = Math.round((data.now - loc.time) / 1000);
-    const stale = (data.now - loc.time) > STALE_MS;
-    const ll = [loc.lat, loc.lng];
-    if (!marker) {
-      marker = L.marker(ll).addTo(map);
-      map.setView(ll, 12);
-    } else {
-      marker.setLatLng(ll);
-    }
-    marker.bindPopup("🚆 " + trains[id].name).openPopup();
-    const ageText = ageSec < 60 ? ageSec + " সেকেন্ড" : Math.round(ageSec / 60) + " মিনিট";
-    statusEl.textContent = (stale ? "⚠️ পুরনো তথ্য — " : "✅ লাইভ — ") + "শেষ আপডেট " + ageText + " আগে";
-  } catch (e) {
-    statusEl.textContent = "ডেটা আনতে সমস্যা হয়েছে।";
-  }
+    if (myId !== selId) return;
+    const loc = data.locations && data.locations[myId];
+    if (loc) { onLocation(loc, data.now, false); $("status").textContent = "тЬЕ рж▓рзЛржХрзЗрж╢ржи ржкрж╛ржУржпрж╝рж╛ ржЧрзЗржЫрзЗ"; }
+    else { live.has = false; $("status").textContent = "ржПржЗ ржЯрзНрж░рзЗржирзЗрж░ рж▓рзЛржХрзЗрж╢ржи ржПржЦржиржУ ржХрзЗржЙ рж╢рзЗржпрж╝рж╛рж░ ржХрж░рзЗржиржирж┐ред"; }
+  } catch (e) { $("status").textContent = "ржбрзЗржЯрж╛ ржЖржирждрзЗ рж╕ржорж╕рзНржпрж╛ рж╣ржпрж╝рзЗржЫрзЗ (ржЗржирзНржЯрж╛рж░ржирзЗржЯ?)ред"; }
+  finally { pollBusy = false; }
 }
 
-// --- "আমি এই ট্রেনে আছি" ---
+// ---------- "ржЖржорж┐ ржПржЗ ржЯрзНрж░рзЗржирзЗ ржЖржЫрж┐" ----------
+const shareBtn = $("shareBtn");
+let watchId = null, lastSent = 0, myMarker = null;
+
 async function sendLocation(pos) {
   const now = Date.now();
   if (now - lastSent < SEND_MS) return;
   lastSent = now;
   try {
-    // text/plain ব্যবহার করলে CORS preflight লাগে না
-    await fetch(API_URL, {
-      method: "POST",
-      mode: "no-cors", // Apps Script রিডাইরেক্টের CORS সমস্যা এড়াতে
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        trainId: select.value,
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        speed: pos.coords.speed || 0
-      })
-    });
-    myStatus.textContent = "📡 পাঠানো হয়েছে (" + new Date().toLocaleTimeString("bn-BD") + ") — Sheet-এর Locations ট্যাব দেখুন";
-  } catch (e) {
-    myStatus.textContent = "❌ লোকেশন পাঠানো যায়নি: " + e.message;
-  }
+    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ trainId: select.value, lat: pos.coords.latitude, lng: pos.coords.longitude, speed: pos.coords.speed || 0 }) });
+    $("myStatus").textContent = "ЁЯУб ржкрж╛ржарж╛ржирзЛ рж╣ржпрж╝рзЗржЫрзЗ (" + new Date().toLocaleTimeString("bn-BD") + ")";
+  } catch (e) { $("myStatus").textContent = "тЭМ рж▓рзЛржХрзЗрж╢ржи ржкрж╛ржарж╛ржирзЛ ржпрж╛ржпрж╝ржирж┐: " + e.message; }
 }
 
 function startSharing() {
-  if (!select.value) { alert("আগে ট্রেন সিলেক্ট করুন।"); return; }
-  if (!("geolocation" in navigator)) { alert("আপনার ব্রাউজারে GPS সাপোর্ট নেই।"); return; }
-  if (!confirm("এই ট্রেনের যাত্রী হিসেবে আপনার লোকেশন সবার সাথে শেয়ার করা হবে। চালিয়ে যাবেন?")) return;
-
+  if (!select.value) { alert("ржЖржЧрзЗ ржЯрзНрж░рзЗржи рж╕рж┐рж▓рзЗржХрзНржЯ ржХрж░рзБржиред"); return; }
+  if (!("geolocation" in navigator)) { alert("ржЖржкржирж╛рж░ ржмрзНрж░рж╛ржЙржЬрж╛рж░рзЗ GPS рж╕рж╛ржкрзЛрж░рзНржЯ ржирзЗржЗред"); return; }
+  if (!confirm("ржПржЗ ржЯрзНрж░рзЗржирзЗрж░ ржпрж╛рждрзНрж░рзА рж╣рж┐рж╕рзЗржмрзЗ ржЖржкржирж╛рж░ рж▓рзЛржХрзЗрж╢ржи рж╕ржмрж╛рж░ рж╕рж╛ржерзЗ рж╢рзЗржпрж╝рж╛рж░ ржХрж░рж╛ рж╣ржмрзЗред ржЪрж╛рж▓рж┐ржпрж╝рзЗ ржпрж╛ржмрзЗржи?")) return;
   watchId = navigator.geolocation.watchPosition(
     pos => {
-      myPos = pos;
-      const ll = [pos.coords.latitude, pos.coords.longitude];
+      const ll = [pos.coords.longitude, pos.coords.latitude];
       if (!myMarker) {
-        myMarker = L.circleMarker(ll, { radius: 9, color: "#1565c0", fillColor: "#42a5f5", fillOpacity: 0.9 })
-          .addTo(map).bindPopup("আপনি এখানে");
-        map.setView(ll, 13);
-      } else {
-        myMarker.setLatLng(ll);
-      }
-      myStatus.textContent = "📍 GPS পাওয়া গেছে (±" + Math.round(pos.coords.accuracy) + " মিটার)";
+        const el = document.createElement("div");
+        el.style.cssText = "width:16px;height:16px;border-radius:50%;background:#42a5f5;border:3px solid #fff;box-shadow:0 0 4px #000";
+        myMarker = new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(map);
+      } else myMarker.setLngLat(ll);
+      $("myStatus").textContent = "ЁЯУН GPS ржкрж╛ржУржпрж╝рж╛ ржЧрзЗржЫрзЗ (┬▒" + Math.round(pos.coords.accuracy) + " ржорж┐ржЯрж╛рж░)";
       sendLocation(pos);
     },
     err => {
       stopSharing();
-      if (err.code === 1) alert("লোকেশন অনুমতি দেওয়া হয়নি। ফোনের GPS/Location অন করে ব্রাউজারে Allow করুন।");
-      else alert("লোকেশন পাওয়া যায়নি: " + err.message);
+      let inFrame = "?"; try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
+      const info = [
+        "рждрзНрж░рзБржЯрж┐рж░ ржХрзЛржб: " + err.code + " (рзз=ржЕржирзБржорждрж┐ ржирзЗржЗ, рзи=ржЕржмрж╕рзНржерж╛ржи ржкрж╛ржУржпрж╝рж╛ ржпрж╛ржпрж╝ржирж┐, рзй=рж╕ржоржпрж╝ рж╢рзЗрж╖)",
+        "ржмрж╛рж░рзНрждрж╛: " + (err.message || "тАФ"),
+        "ржарж┐ржХрж╛ржирж╛: " + location.href,
+        "HTTPS ржирж┐рж░рж╛ржкржж: " + window.isSecureContext,
+        "ржЕржирзНржп ржкрзЗржЬрзЗрж░ ржнрзЗрждрж░рзЗ (iframe): " + inFrame
+      ];
+      const show = st => alert((err.code === 1 ? "рж▓рзЛржХрзЗрж╢ржи ржЕржирзБржорждрж┐ ржжрзЗржУржпрж╝рж╛ рж╣ржпрж╝ржирж┐ред" : "рж▓рзЛржХрзЗрж╢ржи ржкрж╛ржУржпрж╝рж╛ ржпрж╛ржпрж╝ржирж┐ред") + "\n\n" + info.concat(["ржмрзНрж░рж╛ржЙржЬрж╛рж░рзЗрж░ ржЕржирзБржорждрж┐: " + st]).join("\n"));
+      try { navigator.permissions.query({ name: "geolocation" }).then(r => show(r.state), () => show("ржЬрж╛ржирж╛ ржпрж╛ржпрж╝ржирж┐")); } catch (e) { show("ржЬрж╛ржирж╛ ржпрж╛ржпрж╝ржирж┐"); }
     },
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
-  );
-  shareBtn.textContent = "শেয়ার বন্ধ করুন";
-  shareBtn.classList.add("on");
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+  shareBtn.textContent = "рж╢рзЗржпрж╝рж╛рж░ ржмржирзНржз ржХрж░рзБржи"; shareBtn.classList.add("on");
 }
-
 function stopSharing() {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
   watchId = null;
-  if (myMarker) { map.removeLayer(myMarker); myMarker = null; }
-  myStatus.textContent = "";
-  shareBtn.textContent = "আমি এই ট্রেনে আছি";
-  shareBtn.classList.remove("on");
+  if (myMarker) { myMarker.remove(); myMarker = null; }
+  $("myStatus").textContent = "";
+  shareBtn.textContent = "ржЖржорж┐ ржПржЗ ржЯрзНрж░рзЗржирзЗ ржЖржЫрж┐"; shareBtn.classList.remove("on");
 }
-
 shareBtn.addEventListener("click", () => watchId === null ? startSharing() : stopSharing());
+
+// ---------- ржЯрзНрж░рзЗржи ржмржжрж▓ ----------
 select.addEventListener("change", () => {
-  if (marker) { map.removeLayer(marker); marker = null; }
   if (watchId !== null) stopSharing();
-  refresh();
+  selId = select.value;
+  fix = null; head = null; lastLoc = null; live = { has: false, ageMs: 0, recv: 0, n: 0 }; dirSign = 1;
+  if (mapLoaded) { map.getSource("train").setData(EMPTY); map.getSource("trainline").setData(EMPTY); }
+  if (pulseAdded) { pulseMarker.remove(); pulseAdded = false; }
+  if (mode === "3d") exit3d();
+  $("status").textContent = selId ? "рж▓рзЛржХрзЗрж╢ржи ржЦрзЛржБржЬрж╛ рж╣ржЪрзНржЫрзЗтАж" : "ржПржХржЯрж┐ ржЯрзНрж░рзЗржи рж╕рж┐рж▓рзЗржХрзНржЯ ржХрж░рзБржиред";
+  poll();
 });
 
+// ---------- рзйржбрж┐ ржУ ржорзНржпрж╛ржк ржмрж╛ржЯржи ----------
+const btn3d = $("btn3d"), btnLayer = $("btnLayer");
+function setLayer(sat) {
+  if (!mapLoaded) return;
+  map.setLayoutProperty("sat", "visibility", sat ? "visible" : "none");
+  map.setLayoutProperty("osm", "visibility", sat ? "none" : "visible");
+  btnLayer.innerHTML = sat ? "ЁЯЧ║я╕П<small>ржорж╛ржиржЪрж┐рждрзНрж░</small>" : "ЁЯЫ░я╕П<small>рж╕рзНржпрж╛ржЯрзЗрж▓рж╛ржЗржЯ</small>";
+  btnLayer.dataset.sat = sat ? "1" : "";
+  stations.forEach(s => s.el && s.el.classList.toggle("osm", !sat));
+}
+btnLayer.addEventListener("click", () => setLayer(!btnLayer.dataset.sat));
+
+function exit3d() {
+  mode = "2d"; following = false; flying = false;
+  btn3d.classList.remove("active"); btn3d.innerHTML = "3D<small>ржЯрзНрж░рзЗржирзЗ ржЬрзБржо</small>";
+  setLayer(false);
+  map.easeTo({ pitch: 0, bearing: 0, zoom: 12, duration: 1200 });
+}
+btn3d.addEventListener("click", () => {
+  if (mode === "3d" && following) { exit3d(); return; }
+  if (!head) { alert("ржПржЗ ржЯрзНрж░рзЗржирзЗрж░ рж▓рзЛржХрзЗрж╢ржи ржПржЦржиржУ ржкрж╛ржУржпрж╝рж╛ ржпрж╛ржпрж╝ржирж┐ред ржЖржЧрзЗ ржПржХржЯрж┐ ржЯрзНрж░рзЗржи рж╕рж┐рж▓рзЗржХрзНржЯ ржХрж░рзБржи, ржЖрж░ ржХрзЗржЙ рж▓рзЛржХрзЗрж╢ржи рж╢рзЗржпрж╝рж╛рж░ ржХрж░ржЫрзЗржи ржХрж┐ржирж╛ ржжрзЗржЦрзБржиред"); return; }
+  mode = "3d"; following = false; flying = true;
+  btn3d.classList.add("active"); btn3d.innerHTML = "2D<small>ржлрж┐рж░рзЗ ржпрж╛ржи</small>";
+  setLayer(true);
+  camBearing = head.heading || 0;
+  map.flyTo({ center: head.ll, zoom: 16.8, pitch: 68, bearing: camBearing, duration: 2800,
+    padding: { top: 0, bottom: 230, left: 0, right: 0 }, essential: true });
+  map.once("moveend", () => { flying = false; following = true; });
+});
+map.on("dragstart", e => { if (e.originalEvent && following) { following = false; btn3d.innerHTML = "ЁЯОп<small>ржЯрзНрж░рзЗржирзЗ ржлрзЛржХрж╛рж╕</small>"; } });
+
+// ---------- рж╢рзБрж░рзБ ----------
 loadTrains();
-setInterval(refresh, POLL_MS);
+setInterval(poll, POLL_MS);
+requestAnimationFrame(tick);
 </script>
 </body>
 </html>
