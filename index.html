@@ -352,11 +352,62 @@ map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-
 map.on("zoom", () => document.body.classList.toggle("lowzoom", map.getZoom() < 10.5));
 let mapLoaded = false, routeLayersAdded = false;
 
-// ---------- ট্রেনের গঠন ----------
-const UNITS = [{ len: 20, h: 4.4, color: "#b4155a" }];
-for (let i = 0; i < 7; i++) UNITS.push({ len: 22, h: 4.0, color: i % 2 ? "#d9dce3" : "#eceef2" });
-const GAP = 1.5, WIDTH = 3.2;
+// ---------- ট্রেনের গঠন (ইঞ্জিন + ৭টি কোচ), সব মাপ মিটারে ----------
+const UNITS = [{ kind: "loco", len: 20 }];
+for (let i = 0; i < 7; i++) UNITS.push({ kind: "coach", len: 20.5 });
+const GAP = 1.2;
 const TRAIN_LEN = UNITS.reduce((a, u) => a + u.len + GAP, 0);
+const RAD = Math.PI / 180;
+
+// প্রতিটি বাক্স: [পেছন-সীমা s0, সামনে-সীমা s1, প্রস্থ, নিচ z0, ওপর z1, রং]   (s: সামনের দিকে +)
+function unitBoxes(kind, len) {
+  const h = len / 2, out = [];
+  if (kind === "loco") {
+    out.push(
+      [-h + 0.5, h - 0.3, 2.3, 0.35, 1.0, "#262626"],      // নিচের কাঠামো
+      [-h, h, 3.0, 1.0, 1.8, "#c62828"],                   // লাল নিচের অংশ
+      [-h, h, 3.0, 1.8, 2.9, "#f0d08a"],                   // হলদে-ক্রিম মাঝের অংশ
+      [-h, h, 3.0, 2.9, 3.3, "#1f5fae"],                   // নীল পটি
+      [-h, h - 7, 2.7, 3.3, 3.6, "#e6e8ec"],               // হুডের ছাদ
+      [h - 7, h, 3.0, 3.3, 3.9, "#e6e8ec"],                // ক্যাব
+      [h - 6.5, h - 0.6, 3.05, 3.4, 3.8, "#16262c"],       // ক্যাবের পাশের জানালা
+      [h - 3, h + 0.05, 2.4, 3.4, 3.8, "#16262c"],         // সামনের কাচ
+      [h - 7, h, 2.8, 3.9, 4.1, "#e6e8ec"],                // ক্যাবের ছাদ
+      [h - 4.5, h - 2.0, 2.6, 0.1, 0.9, "#111111"],        // সামনের বগি (চাকা)
+      [-h + 2.0, -h + 4.5, 2.6, 0.1, 0.9, "#111111"]       // পেছনের বগি
+    );
+  } else {
+    out.push(
+      [-h + 1.0, h - 1.0, 2.2, 0.4, 1.0, "#262626"],       // নিচের কাঠামো
+      [h - 4.8, h - 2.4, 2.6, 0.1, 0.9, "#111111"],        // বগি (চাকা)
+      [-h + 2.4, -h + 4.8, 2.6, 0.1, 0.9, "#111111"],
+      [-h, h, 3.1, 1.0, 1.35, "#c62828"],                  // লাল পটি
+      [-h, h, 3.1, 1.35, 1.5, "#f2f2f2"],                  // সাদা পটি
+      [-h, h, 3.1, 1.5, 3.5, "#0b6b3a"],                   // সবুজ শরীর
+      [-h + 0.2, h - 0.2, 2.7, 3.5, 3.85, "#dfe2e7"],      // ছাদ
+      [-h + 3.0, -h + 5.5, 1.8, 3.85, 4.15, "#aeb3ba"],    // এসি/ভেন্ট
+      [h - 5.5, h - 3.0, 1.8, 3.85, 4.15, "#aeb3ba"]
+    );
+    for (let i = 0; i < 8; i++) {                           // জানালা
+      const c = -h + 1.6 + i * 2.35;
+      out.push([c - 0.7, c + 0.7, 3.14, 2.1, 3.0, "#16262c"]);
+    }
+  }
+  return out;
+}
+const BOXES = { loco: unitBoxes("loco", 20), coach: unitBoxes("coach", 20.5) };
+
+// ll = ইউনিটের কেন্দ্র, b = চলার দিক (ডিগ্রি, উত্তর থেকে ঘড়ির কাঁটার দিকে)
+function unitFeatures(u, ll, b) {
+  const sb = Math.sin(b * RAD), cb = Math.cos(b * RAD);
+  const kx = 1 / (111320 * Math.cos(ll[1] * RAD)), ky = 1 / 110574;
+  const P = (s, w) => [ll[0] + (s * sb + w * cb) * kx, ll[1] + (s * cb - w * sb) * ky];
+  return BOXES[u.kind].map(([s0, s1, w, z0, z1, c]) => ({
+    type: "Feature", properties: { b: z0, h: z1, color: c },
+    geometry: { type: "Polygon", coordinates: [[P(s0, -w / 2), P(s1, -w / 2), P(s1, w / 2), P(s0, w / 2), P(s0, -w / 2)]] }
+  }));
+}
+
 
 // ---------- লাইভ অবস্থা ----------
 let trains = {}, selId = "";
@@ -372,7 +423,7 @@ let pollBusy = false;
 function back(off) {
   if (head.d != null) {
     const dc = head.d - dirSign * off;
-    return { ll: pointAt(dc), b: bearingAt(dc) };
+    return { ll: pointAt(dc), b: bearingAt(dc) + (dirSign < 0 ? 180 : 0) };
   }
   const c = turf.destination(turf.point(head.ll), off, head.heading + 180, { units: "meters" });
   return { ll: c.geometry.coordinates, b: head.heading };
@@ -383,16 +434,7 @@ function trainFeatures() {
   let cursor = 0;
   UNITS.forEach(u => {
     const { ll, b } = back(cursor + u.len / 2);
-    const c = turf.point(ll);
-    const f = turf.destination(c, u.len / 2, b, { units: "meters" });
-    const k = turf.destination(c, u.len / 2, b + 180, { units: "meters" });
-    const corners = [
-      turf.destination(f, WIDTH / 2, b + 90, { units: "meters" }).geometry.coordinates,
-      turf.destination(f, WIDTH / 2, b - 90, { units: "meters" }).geometry.coordinates,
-      turf.destination(k, WIDTH / 2, b - 90, { units: "meters" }).geometry.coordinates,
-      turf.destination(k, WIDTH / 2, b + 90, { units: "meters" }).geometry.coordinates ];
-    corners.push(corners[0]);
-    feats.push({ type: "Feature", properties: { h: u.h, color: u.color }, geometry: { type: "Polygon", coordinates: [corners] } });
+    unitFeatures(u, ll, b).forEach(f => feats.push(f));
     cursor += u.len + GAP;
   });
   return { type: "FeatureCollection", features: feats };
@@ -411,10 +453,10 @@ let pulseAdded = false;
 map.on("load", () => {
   map.addSource("train", { type: "geojson", data: EMPTY });
   map.addLayer({ id: "train", type: "fill-extrusion", source: "train", paint: {
-    "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": 0.6, "fill-extrusion-opacity": 1 } });
+    "fill-extrusion-color": ["get", "color"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": ["get", "b"], "fill-extrusion-opacity": 1 } });
   map.addSource("trainline", { type: "geojson", data: EMPTY });
-  map.addLayer({ id: "trainline-casing", type: "line", source: "trainline", paint: { "line-color": "#ffffff", "line-width": 9 } });
-  map.addLayer({ id: "trainline", type: "line", source: "trainline", paint: { "line-color": "#b4155a", "line-width": 5.5 } });
+  map.addLayer({ id: "trainline-casing", type: "line", source: "trainline", paint: { "line-color": "#ffffff", "line-width": 9, "line-opacity": ["interpolate", ["linear"], ["zoom"], 14, 1, 15.5, 0] } });
+  map.addLayer({ id: "trainline", type: "line", source: "trainline", paint: { "line-color": "#b4155a", "line-width": 5.5, "line-opacity": ["interpolate", ["linear"], ["zoom"], 14, 1, 15.5, 0] } });
   mapLoaded = true;
   addRouteLayers();
 });
@@ -425,9 +467,9 @@ function addRouteLayers() {
   routeLayersAdded = true;
   map.addSource("route", { type: "geojson", data: route });
   map.addLayer({ id: "route-casing", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": 0.9 } }, "train");
+    paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": ["interpolate", ["linear"], ["zoom"], 14, 0.9, 17, 0.2] } }, "train");
   map.addLayer({ id: "route-line", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#d81b6a", "line-width": 3.5 } }, "train");
+    paint: { "line-color": "#d81b6a", "line-width": 3.5, "line-opacity": ["interpolate", ["linear"], ["zoom"], 14, 1, 17, 0.35] } }, "train");
   stations.forEach(s => {
     const el = document.createElement("div");
     el.className = "st" + (btnLayer.dataset.sat ? "" : " osm");
