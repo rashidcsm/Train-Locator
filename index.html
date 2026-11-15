@@ -25,6 +25,7 @@
 
   .card { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 5; background: #fff;
     border-radius: 24px; padding: 14px 16px; box-shadow: 0 -2px 14px rgba(0,0,0,.25); }
+  .where { font-size: 13px; font-weight: 600; color: #333; margin: 0 0 8px; line-height: 1.45; }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .next { font-size: 14px; color: #666; }
   .next b { font-size: 22px; color: #111; }
@@ -71,8 +72,9 @@
 </div>
 
 <div class="card">
+  <div class="where" id="where" style="display:none"></div>
   <div class="row">
-    <div class="next">পরবর্তী <b id="nextName">—</b> <span id="nextDist"></span></div>
+    <div class="next">পরবর্তী <b id="nextName">—</b> <span id="nextDist" style="font-size:12px"></span></div>
     <div class="speed"><b id="spd">০</b><span>কি/ঘ</span></div>
   </div>
   <div class="row" style="margin-top:6px"><span class="badge" id="liveBadge">ট্রেন সিলেক্ট করুন</span></div>
@@ -191,8 +193,9 @@ function dijkstra(adj, s, t) {
 // elements = Overpass JSON এর elements; ফেরত: {coords, stationsRaw} বা null
 function extractRoute(elements, startApprox, endApprox) {
   const stationsAll = elements
-    .filter(e => e.type === "node" && e.tags && /^(station|halt)$/.test(e.tags.railway || ""))
-    .map(e => ({ name: e.tags["name:bn"] || e.tags.name || "", en: e.tags["name:en"] || e.tags.name || "", c: [e.lon, e.lat] }))
+    .filter(e => (e.type === "node" || e.center) && e.tags && /^(station|halt)$/.test(e.tags.railway || ""))
+    .map(e => ({ name: e.tags["name:bn"] || e.tags.name || "", en: e.tags["name:en"] || e.tags.name || "",
+                 c: e.type === "node" ? [e.lon, e.lat] : [e.center.lon, e.center.lat] }))
     .filter(s => s.name);
 
   const pick = (re, approx) => {
@@ -228,17 +231,12 @@ function makeIndex(coords) {
   return { cum, total, pointAt };
 }
 
-// রুটের ১০০০ মিটারের মধ্যের স্টেশনগুলো রুট বরাবর সাজানো
+// রুট বরাবর স্টেশন সাজানো: শুধু লাইনের ৩০০ মিটারের মধ্যেরগুলো, দূরত্ব লাইনের ওপর সঠিকভাবে মাপা
 function snapStations(coords, idx, raw) {
   const out = [];
   for (const s of raw) {
-    let bi = -1, bd = Infinity;
-    for (let i = 0; i < coords.length; i++) {
-      const dx = (coords[i][0] - s.c[0]) * Math.cos(s.c[1] * Math.PI / 180), dy = coords[i][1] - s.c[1];
-      const d = dx * dx + dy * dy;
-      if (d < bd) { bd = d; bi = i; }
-    }
-    if (Math.sqrt(bd) * 111320 <= 1000) out.push({ name: s.name, c: s.c, d: idx.cum[bi] });
+    const r = snapToRoute(coords, idx.cum, s.c, null, 0);
+    if (r && r.off <= 300) out.push({ name: s.name, c: s.c, d: r.d });
   }
   out.sort((a, b) => a.d - b.d);
   const res = [];
@@ -288,10 +286,10 @@ const OVERPASS = [
   "https://overpass.kumi.systems/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
 ];
-const QUERY = '[out:json][timeout:60];(' +
-  'way["railway"="rail"]["service"!~"siding|yard|spur|crossover"](21.38,91.78,22.42,92.15);' +
-  'node["railway"~"^(station|halt)$"](21.38,91.78,22.42,92.15););out geom;';
-const CACHE_KEY = "railcache_ctg_coxs_v1";
+const QUERY = '[out:json][timeout:60];' +
+  'way["railway"="rail"]["service"!~"siding|yard|spur|crossover"](21.38,91.78,22.42,92.15);out geom;' +
+  'nwr["railway"~"^(station|halt)$"](21.38,91.78,22.42,92.15);out center;';
+const CACHE_KEY = "railcache_ctg_coxs_v2";
 
 async function fetchOverpass() {
   for (const url of OVERPASS) {
@@ -329,6 +327,8 @@ const bnDigits = "০১২৩৪৫৬৭৮৯";
 const bn = x => String(x).replace(/[0-9]/g, d => bnDigits[d]);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const lerpAngle = (a, b, t) => a + (((b - a + 540) % 360) - 180) * t;
+const setText = (id, v) => { const e = $(id); if (e && e.textContent !== v) e.textContent = v; };
+const fmtDist = m => m >= 1000 ? bn((m / 1000).toFixed(1)) + " কি" : bn(Math.round(m)) + " মি";
 const fmtAge = s => s < 60 ? bn(Math.round(s)) + " সে" : s < 3600 ? bn(Math.round(s / 60)) + " মিনিট" : bn(Math.round(s / 3600)) + " ঘণ্টা";
 
 // ---------- রুট অবস্থা (পরে লোড হয়) ----------
@@ -414,6 +414,10 @@ let trains = {}, selId = "";
 let fix = null;         // সর্বশেষ জানা অবস্থান
 let head = null;        // পর্দায় দেখানো ট্রেনের মাথা (মসৃণ)
 let dirSign = 1;        // +১ = রুটের শুরু থেকে শেষের দিকে
+let dirState = "unknown"; // unknown = দিক জানা নেই | hint = ট্রেনের রুট লেখা থেকে আন্দাজ | measured = চলা দেখে নিশ্চিত
+let dirScore = 0;         // চলার গড় বেগ (চিহ্নসহ), দিক ঠিক করতে
+let allStations = [];     // OSM-এর সব স্টেশন (লাইনের বাইরে থাকলে সবচেয়ে কাছেরটা খুঁজতে)
+const geo = { text: "", ll: null, t: 0, busy: false };
 let live = { has: false, ageMs: 0, recv: 0, n: 0 };
 let lastLoc = null, lastNow = 0;
 let mode = "2d", following = false, flying = false, camBearing = 0;
@@ -489,6 +493,7 @@ $("noteTxt").textContent = "রেললাইনের ডেটা লোড �
   idx = makeIndex(routeCoords); total = idx.total;
   route = turf.lineString(routeCoords);
   stations = snapStations(routeCoords, idx, rail.stationsRaw);
+  allStations = rail.stationsRaw.filter(s => s.name);
   $("noteTxt").textContent = "রুট ও স্টেশন: OpenStreetMap";
   addRouteLayers();
   if (lastLoc) onLocation(lastLoc, lastNow, true); // আগে আসা অবস্থান নতুন রুটে বসাই
@@ -540,7 +545,10 @@ function onLocation(loc, nowSrv, force) {
     }
   }
   fix = { serverTime: loc.time, tLocal: performance.now() - ageMs, ll, d, v, vx, vy, gps: Number(loc.speed) || 0 };
-  if (d != null && Math.abs(v) > 1) dirSign = v >= 0 ? 1 : -1;
+  if (d != null) { // দিক: জিপিএসের সামান্য নড়াচড়ায় বদলাবে না; স্পষ্ট এগোলেই নিশ্চিত হবে
+    dirScore = 0.7 * dirScore + 0.3 * v;
+    if (Math.abs(dirScore) > 1.5) { dirSign = dirScore > 0 ? 1 : -1; dirState = "measured"; }
+  }
 
   if (!head) { // প্রথম অবস্থান: সোজা সেখানে
     head = { ll, d, heading: undefined };
@@ -608,23 +616,114 @@ function updateCard(now) {
     $("spd").textContent = bn(Math.round(kmh));
   } else $("spd").textContent = bn(0);
 
-  // স্টেশন ও অগ্রগতি (শুধু রেললাইন মোডে)
-  const onRoute = head && head.d != null && stations.length >= 2;
-  $("barWrap").style.display = onRoute ? "block" : "none";
-  if (!onRoute) {
-    $("nextName").textContent = head ? "—" : "—"; $("nextDist").textContent = "";
-    return;
+  // বর্তমান স্থান (কার্ডের ওপরের লাইন)
+  if (now - lastWhere > 400) {
+    lastWhere = now;
+    const w = whereLabel();
+    setText("where", w); $("where").style.display = w ? "block" : "none";
   }
-  let ni;
-  if (dirSign >= 0) { ni = stations.findIndex(s => s.d > head.d); if (ni === -1) ni = stations.length - 1; }
-  else { ni = -1; stations.forEach((s, i) => { if (s.d < head.d) ni = i; }); if (ni === -1) ni = 0; }
-  const next = stations[ni], prev = stations[clamp(ni - dirSign, 0, stations.length - 1)];
-  const remain = Math.abs(next.d - head.d);
-  $("nextName").textContent = next.name;
-  $("nextDist").textContent = "(" + (remain >= 1000 ? bn(Math.round(remain / 1000)) + " কি" : bn(Math.round(remain)) + " মি") + ")";
-  $("prevName").textContent = prev.name; $("nextName2").textContent = next.name;
-  const frac = clamp(Math.abs(head.d - prev.d) / Math.max(1, Math.abs(next.d - prev.d)), 0, 1);
+
+  const onRoute = head && head.d != null && stations.length >= 2;
+  $("barWrap").style.display = "none";
+  if (!onRoute) { setText("nextName", "—"); setText("nextDist", head ? "রেললাইনের বাইরে" : ""); return; }
+  if (dirState === "unknown") { setText("nextName", "—"); setText("nextDist", "ট্রেন চলতে শুরু করলে দিক বোঝা যাবে"); return; }
+
+  const d = head.d, n = stations.length;
+  let cur = -1, bd = Infinity;
+  stations.forEach((s, i) => { const x = Math.abs(s.d - d); if (x < bd) { bd = x; cur = i; } });
+  let ni, pi;
+  if (bd <= 150) { ni = cur + dirSign; pi = cur; }                       // কোনো স্টেশনে থাকলে পরেরটাই "পরবর্তী"
+  else { const hi = firstAfter(d); ni = dirSign >= 0 ? hi : hi - 1; pi = ni - dirSign; }
+  if (ni < 0 || ni >= n) { setText("nextName", "—"); setText("nextDist", "(এটি শেষ স্টেশন)"); return; }
+  const next = stations[ni], prev = stations[clamp(pi, 0, n - 1)];
+  const remain = Math.abs(next.d - d);
+  setText("nextName", next.name);
+  setText("nextDist", "(" + fmtDist(remain) + ")");
+  setText("prevName", prev.name); setText("nextName2", next.name);
+  const frac = clamp(Math.abs(d - prev.d) / Math.max(1, Math.abs(next.d - prev.d)), 0, 1);
   $("fill").style.width = (frac * 100) + "%"; $("dot").style.left = (frac * 100) + "%";
+  $("barWrap").style.display = "block";
+}
+let lastWhere = 0;
+
+// d-এর পরের প্রথম স্টেশনের সূচক (না থাকলে তালিকার দৈর্ঘ্য)
+function firstAfter(d) { const i = stations.findIndex(s => s.d > d); return i === -1 ? stations.length : i; }
+
+// "এখন কোথায়": স্টেশনে / কাছে / মাঝে, সাথে এলাকার নাম; লাইনের বাইরে হলে সবচেয়ে কাছের স্টেশন
+function whereLabel() {
+  if (!head) return "";
+  const place = (geo.ll && geo.text && hav(geo.ll, head.ll) < 1500) ? geo.text : "";
+  let main = "";
+  if (head.d != null && stations.length >= 2) {
+    const d = head.d;
+    let cur = -1, bd = Infinity;
+    stations.forEach((s, i) => { const x = Math.abs(s.d - d); if (x < bd) { bd = x; cur = i; } });
+    const hi = firstAfter(d), lo = hi - 1;
+    if (bd <= 150) main = stations[cur].name + " স্টেশনে";
+    else if (bd <= 800 || lo < 0 || hi >= stations.length) main = stations[cur].name + " স্টেশনের কাছে";
+    else main = stations[lo].name + " ও " + stations[hi].name + "-এর মাঝে";
+  } else if (allStations.length) {
+    let best = null, bd = Infinity;
+    allStations.forEach(s => { const x = hav(s.c, head.ll); if (x < bd) { bd = x; best = s; } });
+    if (best) main = "সবচেয়ে কাছের স্টেশন: " + best.name + " (" + fmtDist(bd) + ")";
+  }
+  return [place, main].filter(Boolean).join(" • ");
+}
+
+// এলাকার নাম: OpenStreetMap-এর Nominatim থেকে (বাংলায়), কম ঘনঘন
+function placeFromAddress(a) {
+  const place = a.neighbourhood || a.suburb || a.village || a.hamlet || a.town || a.city_district || a.city || "";
+  const admin = a.county || a.state_district || "";
+  return [place, admin].filter((x, i, arr) => x && arr.indexOf(x) === i).join(", ");
+}
+async function geocode(ll) {
+  const now = Date.now();
+  if (geo.busy || now - geo.t < 15000) return;
+  if (geo.ll && hav(geo.ll, ll) < 400 && now - geo.t < 120000) return;
+  geo.busy = true; geo.t = now;
+  try {
+    const res = await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&addressdetails=1&accept-language=bn,en" +
+      "&lat=" + ll[1].toFixed(5) + "&lon=" + ll[0].toFixed(5));
+    const j = await res.json();
+    const txt = placeFromAddress((j && j.address) || {});
+    if (txt) { geo.text = txt; geo.ll = ll; }
+  } catch (e) { /* নেটওয়ার্ক সমস্যা: পরের বার আবার */ }
+  finally { geo.busy = false; }
+}
+function geoTick() { if (selId && head) geocode(head.ll); }
+
+// ট্রেনের রুট লেখা ("CXB - CTG", "কক্সবাজার–চট্টগ্রাম", "Cox's Bazar to Chattogram") থেকে চলার দিক বের করা।
+// লেখাটি "শুরু - গন্তব্য" ধরা হয়। +১ = কক্সবাজারের দিকে, −১ = চট্টগ্রামের দিকে, ০ = বোঝা যায়নি
+const CTG_RE = /CTG|CGP|Chattogram|Chittagong|চট্টগ্রাম|চিটাগাং|চিটাগং/i;
+const CXB_RE = /CXB|Cox|কক্সবাজার|কক্স\s?বাজার/i;
+function routeEnds(txt, wholeField) {
+  const s = String(txt == null ? "" : txt).trim();
+  if (!s) return null;
+  if (wholeField) {   // শুধু রুটের ঘর: পুরোটাই "শুরু - গন্তব্য"
+    const p = s.split(/\s*(?:–|—|-|→|>|\bto\b)\s*/i).filter(Boolean);
+    return p.length >= 2 ? [p[0], p[p.length - 1]] : null;
+  }
+  // নামের ঘর ("৮১৫ কক্সবাজার এক্সপ্রেস CXB - CTG"): শেষ "কিছু - কিছু" অংশটি নিই
+  const ms = [...s.matchAll(/([^\s\-–—→>]+)\s*[-–—→>]\s*([^\s\-–—→>]+)/g)];
+  const m = ms[ms.length - 1];
+  return m ? [m[1], m[2]] : null;
+}
+function dirFromEnds(e) {
+  if (!e) return 0;
+  const o = e[0], d = e[1];
+  let score = 0;
+  if (CXB_RE.test(d)) score++;
+  if (CTG_RE.test(o)) score++;
+  if (CTG_RE.test(d)) score--;
+  if (CXB_RE.test(o)) score--;
+  return Math.sign(score);
+}
+function applyDirHint() {
+  dirSign = 1; dirState = "unknown"; dirScore = 0;
+  const tr = trains[selId];
+  if (!tr) return;
+  const s = dirFromEnds(routeEnds(tr.route, true)) || dirFromEnds(routeEnds(tr.name, false));
+  if (s) { dirSign = s; dirState = "hint"; }
 }
 
 // ---------- সার্ভার থেকে লোকেশন আনা ----------
@@ -702,7 +801,7 @@ shareBtn.addEventListener("click", () => watchId === null ? startSharing() : sto
 select.addEventListener("change", () => {
   if (watchId !== null) stopSharing();
   selId = select.value;
-  fix = null; head = null; lastLoc = null; live = { has: false, ageMs: 0, recv: 0, n: 0 }; dirSign = 1;
+  fix = null; head = null; lastLoc = null; live = { has: false, ageMs: 0, recv: 0, n: 0 }; applyDirHint(); geo.text = ""; geo.ll = null;
   if (mapLoaded) { map.getSource("train").setData(EMPTY); map.getSource("trainline").setData(EMPTY); }
   if (pulseAdded) { pulseMarker.remove(); pulseAdded = false; }
   if (mode === "3d") exit3d();
@@ -744,6 +843,7 @@ map.on("dragstart", e => { if (e.originalEvent && following) { following = false
 // ---------- শুরু ----------
 loadTrains();
 setInterval(poll, POLL_MS);
+setInterval(geoTick, 5000);
 requestAnimationFrame(tick);
 </script>
 </body>
