@@ -205,6 +205,7 @@ function showModal(opts) {
     const onKey = e => { if (e.key === "Escape") { e.preventDefault(); finish(opts.cancelValue); } };
     const finish = v => {
       if (done) return; done = true;
+      try { if (document.activeElement && root.contains(document.activeElement)) document.activeElement.blur(); } catch (e) {}
       root.classList.remove("open"); root.setAttribute("aria-hidden", "true");
       document.removeEventListener("keydown", onKey, true);
       resolve(v);
@@ -230,7 +231,7 @@ const uiConfirm = (msg, title) => showModal({ title, message: msg, buttons: [{ l
 // সাইড মেনু
 const drawerEl = byId("drawer"), drawerBackdrop = byId("drawerBackdrop");
 function openDrawer() { drawerEl.classList.add("open"); drawerBackdrop.classList.add("open"); drawerEl.setAttribute("aria-hidden", "false"); }
-function closeDrawer() { drawerEl.classList.remove("open"); drawerBackdrop.classList.remove("open"); drawerEl.setAttribute("aria-hidden", "true"); }
+function closeDrawer() { try { if (document.activeElement && drawerEl.contains(document.activeElement)) document.activeElement.blur(); } catch (e) {} drawerEl.classList.remove("open"); drawerBackdrop.classList.remove("open"); drawerEl.setAttribute("aria-hidden", "true"); }
 byId("menuBtn").addEventListener("click", openDrawer);
 drawerBackdrop.addEventListener("click", closeDrawer);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
