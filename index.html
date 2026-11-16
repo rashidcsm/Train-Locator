@@ -240,9 +240,22 @@ byId("miMaker").addEventListener("click", () => { closeDrawer(); uiAlert(MAKER_T
 byId("miVersion").addEventListener("click", async () => {
   closeDrawer();
   const r = await showModal({ title: "ভার্সন", message: APP_NAME + "\nভার্সন " + APP_VERSION,
-    buttons: [{ label: "বিস্তারিত", value: "diag" }, { label: "ঠিক আছে", value: true, primary: true }], cancelValue: true });
+    buttons: [{ label: "বিস্তারিত", value: "diag" }, { label: "রেল ডেটা সেভ", value: "save" }, { label: "ঠিক আছে", value: true, primary: true }], cancelValue: true });
   if (r === "diag") uiAlert(await diagText(), "সমস্যা-নির্ণয়");
+  if (r === "save") saveRailFile();
 });
+
+// রেল ডেটা ফাইল হিসেবে নামানো (Chrome-এ লোড হলে rail.json বানিয়ে GitHub-এ রাখার জন্য)
+function saveRailFile() {
+  let s = window.__railJson;
+  try { if (!s) s = localStorage.getItem(CACHE_KEY); } catch (e) {}
+  if (!s) { uiAlert("রেল ডেটা এখনও লোড হয়নি। লোড হওয়ার পর আবার চেষ্টা করুন।"); return; }
+  try {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([s], { type: "application/json" }));
+    a.download = "rail.json"; document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { uiAlert("ফাইল নামানো যায়নি: " + e.message); }
+}
 
 // সমস্যা-নির্ণয়: কোথায় আটকাচ্ছে বোঝার জন্য (WebView-এ অ্যাপের ভেতরে কাজ না করলে স্ক্রিনশট পাঠাতে)
 async function diagText() {
@@ -259,6 +272,7 @@ async function diagText() {
   let ls = "ঠিক ✔";
   try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); } catch (e) { ls = "বন্ধ ✘ (" + (e && e.name) + ")"; }
   L.push("লোকাল স্টোরেজ: " + ls);
+  L.push("অ্যাপের GPS ফিড: " + (window.AppInventor ? (nativeFix ? "আসছে ✔ (" + Math.round((Date.now() - nativeFix.t) / 1000) + " সে আগে)" : "সংযুক্ত, ডেটা আসেনি") : "নেই"));
   let perm = "জানা যায়নি";
   try { perm = (await navigator.permissions.query({ name: "geolocation" })).state; } catch (e) {}
   L.push("লোকেশন অনুমতি: " + perm);
@@ -504,13 +518,18 @@ async function getRail() {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
     if (cached && cached.coords && cached.coords.length > 50) return cached;
   } catch (e) {}
+  try {   // সাইটে রাখা তৈরি ফাইল (rail.json): অ্যাপে সবচেয়ে নির্ভরযোগ্য
+    const rr = await fetch("rail.json?v=1");
+    if (rr.ok) { const j = await rr.json(); if (j && j.coords && j.coords.length > 50) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(j)); } catch (e) {} return j; } }
+  } catch (e) {}
   const elements = await fetchOverpass();
   if (!elements) return null;
   const r = extractRoute(elements, START_APPROX, END_APPROX);
   if (!r) return null;
   const q = p => [Math.round(p[0] * 1e5) / 1e5, Math.round(p[1] * 1e5) / 1e5];
   const out = { coords: r.coords.map(q), stationsRaw: r.stationsRaw.map(s => ({ name: s.name, en: s.en, c: q(s.c) })) };
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(out)); } catch (e) {}
+  window.__railJson = JSON.stringify(out);
+  try { localStorage.setItem(CACHE_KEY, window.__railJson); } catch (e) {}
   return out;
 }
 
@@ -951,26 +970,58 @@ async function sendLocation(pos) {
   } catch (e) { $("myStatus").textContent = "❌ লোকেশন পাঠানো যায়নি: " + e.message; }
 }
 
+// ---------- অ্যাপ (App Inventor LocationSensor) থেকে লোকেশন ----------
+// অ্যাপ ঘনঘন window.nativeLocation(lat, lng, speed, accuracy) ডাকবে; speed মিটার/সেকেন্ড
+let nativeFix = null, nativeMode = false;
+window.nativeLocation = function (lat, lng, speed, acc) {
+  lat = Number(lat); lng = Number(lng);
+  if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return;
+  nativeFix = { t: Date.now(), coords: { latitude: lat, longitude: lng, speed: Math.max(0, Number(speed) || 0), accuracy: Number(acc) || 0 } };
+  if (nativeMode) handleMyPos(nativeFix);
+};
+// App Inventor-এর নেটিভ WebViewer-এ JavaScript চালানোর ব্লক নেই; তাই অ্যাপ WebViewString-এ "lat,lng,speed,acc" লিখে রাখে, পেজ প্রতি সেকেন্ডে পড়ে
+let lastWvs = "";
+setInterval(function () {
+  try {
+    if (!window.AppInventor || !window.AppInventor.getWebViewString) return;
+    const s = String(window.AppInventor.getWebViewString() || "");
+    if (!s || s === lastWvs) return;
+    lastWvs = s;
+    const a = s.split(",");
+    if (a.length >= 2) window.nativeLocation(a[0], a[1], a[2], a[3]);
+  } catch (e) {}
+}, 1000);
+const hasNative = () => !!nativeFix && Date.now() - nativeFix.t < 30000;
+function handleMyPos(pos) {
+  const ll = [pos.coords.longitude, pos.coords.latitude];
+  if (!myMarker) {
+    const el = document.createElement("div");
+    el.style.cssText = "width:16px;height:16px;border-radius:50%;background:#42a5f5;border:3px solid #fff;box-shadow:0 0 4px #000";
+    myMarker = new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(map);
+  } else myMarker.setLngLat(ll);
+  $("myStatus").textContent = "📍 GPS পাওয়া গেছে" + (pos.coords.accuracy ? " (±" + Math.round(pos.coords.accuracy) + " মিটার)" : "");
+  sendLocation(pos);
+}
+
 let starting = false;
 async function startSharing() {
   if (starting) return;
   if (!select.value) { uiAlert("আগে ট্রেন সিলেক্ট করুন।"); return; }
-  if (!("geolocation" in navigator)) { uiAlert("আপনার ব্রাউজারে GPS সাপোর্ট নেই।"); return; }
+  const appMode = hasNative() || /[?&]app=1/.test(location.search);
+  if (!appMode && !("geolocation" in navigator)) { uiAlert("আপনার ব্রাউজারে GPS সাপোর্ট নেই।"); return; }
   starting = true;
   const agreed = await uiConfirm("এই ট্রেনের যাত্রী হিসেবে আপনার লোকেশন সবার সাথে শেয়ার করা হবে। চালিয়ে যাবেন?");
   starting = false;
   if (!agreed || watchId !== null) return;
+  if (appMode) {   // অ্যাপের LocationSensor থেকে আসা অবস্থান ব্যবহার
+    nativeMode = true; watchId = "native";
+    $("myStatus").textContent = "⏳ অ্যাপ থেকে GPS অবস্থানের অপেক্ষা…";
+    if (nativeFix) handleMyPos(nativeFix);
+    shareBtn.textContent = "শেয়ার বন্ধ করুন"; shareBtn.classList.add("on");
+    return;
+  }
   watchId = navigator.geolocation.watchPosition(
-    pos => {
-      const ll = [pos.coords.longitude, pos.coords.latitude];
-      if (!myMarker) {
-        const el = document.createElement("div");
-        el.style.cssText = "width:16px;height:16px;border-radius:50%;background:#42a5f5;border:3px solid #fff;box-shadow:0 0 4px #000";
-        myMarker = new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(map);
-      } else myMarker.setLngLat(ll);
-      $("myStatus").textContent = "📍 GPS পাওয়া গেছে (±" + Math.round(pos.coords.accuracy) + " মিটার)";
-      sendLocation(pos);
-    },
+    pos => handleMyPos(pos),
     err => {
       stopSharing();
       let inFrame = "?"; try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
@@ -988,8 +1039,8 @@ async function startSharing() {
   shareBtn.textContent = "শেয়ার বন্ধ করুন"; shareBtn.classList.add("on");
 }
 function stopSharing() {
-  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-  watchId = null;
+  if (watchId !== null && watchId !== "native") navigator.geolocation.clearWatch(watchId);
+  watchId = null; nativeMode = false;
   if (myMarker) { myMarker.remove(); myMarker = null; }
   $("myStatus").textContent = "";
   shareBtn.textContent = "আমি এই ট্রেনে আছি"; shareBtn.classList.remove("on");
