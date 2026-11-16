@@ -41,8 +41,8 @@ window.addEventListener("unhandledrejection", function (ev) {
     border-radius: 24px; padding: 14px 16px; box-shadow: 0 -2px 14px rgba(0,0,0,.25); }
   .where { font-size: 13px; font-weight: 600; color: #333; margin: 0 0 8px; line-height: 1.45; }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .next { font-size: 14px; color: #666; }
-  .next b { font-size: 22px; color: #111; }
+  .next { font-size: 11px; color: #666; }
+  .next b { font-size: 15px; color: #111; }
   .speed { background: #f3f4f6; border-radius: 14px; padding: 6px 14px; text-align: center; min-width: 72px; }
   .speed b { font-size: 24px; display: block; }
   .speed span { font-size: 12px; color: #666; }
@@ -148,7 +148,7 @@ window.addEventListener("unhandledrejection", function (ev) {
 <div class="card">
   <div class="where" id="where" style="display:none"></div>
   <div class="row">
-    <div class="next">পরবর্তী <b id="nextName">—</b> <span id="nextDist" style="font-size:12px"></span></div>
+    <div class="next">পরবর্তী <b id="nextName">—</b> <span id="nextDist" style="font-size:10px"></span></div>
     <div class="speed"><b id="spd">০</b><span>কি/ঘ</span></div>
   </div>
   <div class="row" style="margin-top:6px"><span class="badge" id="liveBadge">ট্রেন সিলেক্ট করুন</span></div>
@@ -273,6 +273,7 @@ async function diagText() {
   try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); } catch (e) { ls = "বন্ধ ✘ (" + (e && e.name) + ")"; }
   L.push("লোকাল স্টোরেজ: " + ls);
   L.push("অ্যাপের GPS ফিড: " + (window.AppInventor ? (nativeFix ? "আসছে ✔ (" + Math.round((Date.now() - nativeFix.t) / 1000) + " সে আগে)" : "সংযুক্ত, ডেটা আসেনি") : "নেই"));
+  L.push("স্টেশন: ম্যাপে " + (typeof stations !== "undefined" ? stations.length : 0) + "টি; উৎসে: " + (window.__stationDiag ? window.__stationDiag.join(", ") : "—"));
   let perm = "জানা যায়নি";
   try { perm = (await navigator.permissions.query({ name: "geolocation" })).state; } catch (e) {}
   L.push("লোকেশন অনুমতি: " + perm);
@@ -400,7 +401,7 @@ function dijkstra(adj, s, t) {
 // elements = Overpass JSON এর elements; ফেরত: {coords, stationsRaw} বা null
 function extractRoute(elements, startApprox, endApprox) {
   const stationsAll = elements
-    .filter(e => (e.type === "node" || e.center) && e.tags && /^(station|halt)$/.test(e.tags.railway || ""))
+    .filter(e => (e.type === "node" || e.center) && e.tags && (/^(station|halt|stop)$/.test(e.tags.railway || "") || e.tags.public_transport === "station"))
     .map(e => ({ name: e.tags["name:bn"] || e.tags.name || "", en: e.tags["name:en"] || e.tags.name || "",
                  c: e.type === "node" ? [e.lon, e.lat] : [e.center.lon, e.center.lat] }))
     .filter(s => s.name);
@@ -443,13 +444,13 @@ function snapStations(coords, idx, raw) {
   const out = [];
   for (const s of raw) {
     const r = snapToRoute(coords, idx.cum, s.c, null, 0);
-    if (r && r.off <= 300) out.push({ name: s.name, c: s.c, d: r.d });
+    if (r && r.off <= 800) out.push({ name: s.name, c: s.c, d: r.d });
   }
   out.sort((a, b) => a.d - b.d);
   const res = [];
   for (const s of out) {
     const last = res[res.length - 1];
-    if (last && (last.name === s.name || s.d - last.d < 300)) continue;
+    if (last && (last.name === s.name || s.d - last.d < 120)) continue;
     res.push(s);
   }
   return res;
@@ -487,6 +488,12 @@ const OFF_ROUTE = 400;         // রেললাইন থেকে এত ম�
 
 const START_APPROX = [91.8310, 22.3560], END_APPROX = [91.9830, 21.4430];
 
+// ম্যাপে না থাকা স্টেশন হাতে যোগ করুন: Google Maps-এ স্টেশনে ট্যাপ করে লোকেশনের lat,lng নিয়ে এখানে বসান
+// উদাহরণ: { name: "লোহাগাড়া", en: "Lohagara", c: [দ্রাঘিমা(lng), অক্ষাংশ(lat)] }
+const EXTRA_STATIONS = [
+  { name: "লোহাগাড়া", en: "Lohagara", c: [92.071737, 21.986294] }
+];
+
 // ---------- OSM রেললাইন (চট্টগ্রাম–কক্সবাজার) ----------
 const OVERPASS = [
   "https://overpass-api.de/api/interpreter",
@@ -495,8 +502,9 @@ const OVERPASS = [
 ];
 const QUERY = '[out:json][timeout:60];' +
   'way["railway"="rail"]["service"!~"siding|yard|spur|crossover"](21.38,91.78,22.42,92.15);out geom;' +
-  'nwr["railway"~"^(station|halt)$"](21.38,91.78,22.42,92.15);out center;';
-const CACHE_KEY = "railcache_ctg_coxs_v2";
+  'nwr["railway"~"^(station|halt|stop)$"](21.38,91.78,22.42,92.15);out center;' +
+  'nwr["public_transport"~"^(station|stop_position)$"]["train"="yes"](21.38,91.78,22.42,92.15);out center;';
+const CACHE_KEY = "railcache_ctg_coxs_v3";
 
 async function fetchOverpass() {
   for (const url of OVERPASS) {
@@ -519,7 +527,7 @@ async function getRail() {
     if (cached && cached.coords && cached.coords.length > 50) return cached;
   } catch (e) {}
   try {   // সাইটে রাখা তৈরি ফাইল (rail.json): অ্যাপে সবচেয়ে নির্ভরযোগ্য
-    const rr = await fetch("rail.json?v=1");
+    const rr = await fetch("rail.json?v=2");
     if (rr.ok) { const j = await rr.json(); if (j && j.coords && j.coords.length > 50) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(j)); } catch (e) {} return j; } }
   } catch (e) {}
   const elements = await fetchOverpass();
@@ -704,8 +712,11 @@ $("noteTxt").textContent = "রেললাইনের ডেটা লোড �
   routeCoords = rail.coords;
   idx = makeIndex(routeCoords); total = idx.total;
   route = turf.lineString(routeCoords);
-  stations = snapStations(routeCoords, idx, rail.stationsRaw);
-  allStations = rail.stationsRaw.filter(s => s.name);
+  const rawAll = rail.stationsRaw.slice();
+  EXTRA_STATIONS.forEach(x => { if (!rawAll.some(s => s.name === x.name)) rawAll.push(x); });
+  window.__stationDiag = rawAll.map(s => { const r = snapToRoute(routeCoords, idx.cum, s.c, null, 0); return s.name + " (" + (r ? Math.round(r.off) + "মি" : "?") + ")"; });
+  stations = snapStations(routeCoords, idx, rawAll);
+  allStations = rawAll.filter(s => s.name);
   $("noteTxt").textContent = "রুট ও স্টেশন: OpenStreetMap";
   addRouteLayers();
   if (lastLoc) onLocation(lastLoc, lastNow, true); // আগে আসা অবস্থান নতুন রুটে বসাই
