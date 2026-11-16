@@ -4,7 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Train Locator</title>
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script>
+window.__errs = [];
+window.addEventListener("error", function (ev) {
+  try {
+    var t = ev.target;
+    if (t && t !== window && (t.src || t.href)) { window.__errs.push("লোড হয়নি: " + (t.src || t.href)); return; }
+    window.__errs.push((ev.message || "?") + (ev.filename ? " [" + String(ev.filename).split("/").pop() + ":" + (ev.lineno || "?") + "]" : ""));
+  } catch (e) {}
+}, true);
+window.addEventListener("unhandledrejection", function (ev) {
+  try { window.__errs.push("প্রতিশ্রুতি: " + String((ev.reason && ev.reason.message) || ev.reason)); } catch (e) {}
+});
+</script>
+<link rel="stylesheet" href="lib/maplibre-gl.css" onerror="this.onerror=null;this.href='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; font-family: system-ui, "Noto Sans Bengali", sans-serif; overflow: hidden; }
@@ -62,9 +75,9 @@
   .menu-btn:active { background: rgba(255,255,255,.18); }
   .menu-title { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
 
-  .drawer-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .drawer-backdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 40; background: rgba(0,0,0,.45); opacity: 0; pointer-events: none; transition: opacity .25s; }
   .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
-  .drawer { position: fixed; top: 0; bottom: 0; left: 0; width: min(80vw, 300px); z-index: 50; background: #fff; transform: translateX(-104%);
+  .drawer { position: fixed; top: 0; bottom: 0; left: 0; width: 80vw; max-width: 300px; z-index: 50; background: #fff; transform: translateX(-104%);
     transition: transform .25s ease; display: flex; flex-direction: column; box-shadow: 4px 0 18px rgba(0,0,0,.3); }
   .drawer.open { transform: translateX(0); }
   .drawer-head { background: #0b5d3b; color: #fff; padding: 28px 16px 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
@@ -76,7 +89,7 @@
   .drawer-item:active { background: #eef5f0; }
   .drawer-item .ic { width: 24px; text-align: center; }
 
-  .modal { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 100; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; padding: 20px; }
   .modal.open { display: flex; }
   .modal-card { background: #fff; border-radius: 20px; width: 100%; max-width: 380px; padding: 20px 20px 14px; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
   .modal-title { font-size: 19px; font-weight: 700; color: #0b5d3b; margin-bottom: 10px; }
@@ -147,11 +160,19 @@
   <div class="note" id="noteTxt"></div>
 </div>
 
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+<script src="lib/maplibre-gl.js"></script>
+<script>if (window.maplibregl) { window.__srcML = "লোকাল ফাইল"; } else { window.__srcML = "ইন্টারনেট"; document.write('<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"><\/script>'); }</script>
+<script src="lib/turf.min.js"></script>
+<script>if (window.turf) { window.__srcTF = "লোকাল ফাইল"; } else { window.__srcTF = "ইন্টারনেট"; document.write('<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"><\/script>'); }</script>
 <script>
 function showErr(m) { const e = document.getElementById("err"); if (e) { e.style.display = "block"; e.textContent = "⚠️ ত্রুটি: " + m; } }
-window.addEventListener("error", ev => showErr(ev.message + (ev.lineno ? " (লাইন " + ev.lineno + ")" : "")));
+window.addEventListener("error", ev => {
+  // বিবরণ-লুকানো "Script error." আসে অ্যাপ/এক্সটেনশন থেকে ঢোকানো বা বাইরের স্ক্রিপ্ট থেকে, আমাদের কোডের নয়: ব্যানার না দেখিয়ে কনসোলে রাখি
+  if (/libs-missing/.test(ev.message || "")) return;
+  if (!ev.filename && !ev.lineno && /^Script error\.?$/i.test(ev.message || "")) { try { console.warn("Script error (বিবরণ নেই)"); } catch (e) {} return; }
+  const where = ev.filename ? " [" + String(ev.filename).split("/").pop() + ":" + (ev.lineno || "?") + "]" : "";
+  showErr((ev.message || "অজানা ত্রুটি") + where);
+});
 window.addEventListener("unhandledrejection", ev => showErr(String(ev.reason && ev.reason.message || ev.reason)));
 
 // ====UI-BEGIN====
@@ -215,7 +236,38 @@ drawerBackdrop.addEventListener("click", closeDrawer);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
 byId("miRules").addEventListener("click", () => { closeDrawer(); uiAlert(RULES_TEXT, "নিয়মাবলি"); });
 byId("miMaker").addEventListener("click", () => { closeDrawer(); uiAlert(MAKER_TEXT, "প্রস্তুতকারক"); });
-byId("miVersion").addEventListener("click", () => { closeDrawer(); uiAlert(APP_NAME + "\nভার্সন " + APP_VERSION, "ভার্সন"); });
+byId("miVersion").addEventListener("click", async () => {
+  closeDrawer();
+  const r = await showModal({ title: "ভার্সন", message: APP_NAME + "\nভার্সন " + APP_VERSION,
+    buttons: [{ label: "বিস্তারিত", value: "diag" }, { label: "ঠিক আছে", value: true, primary: true }], cancelValue: true });
+  if (r === "diag") uiAlert(await diagText(), "সমস্যা-নির্ণয়");
+});
+
+// সমস্যা-নির্ণয়: কোথায় আটকাচ্ছে বোঝার জন্য (WebView-এ অ্যাপের ভেতরে কাজ না করলে স্ক্রিনশট পাঠাতে)
+async function diagText() {
+  const L = [];
+  const ua = navigator.userAgent || "";
+  const cm = ua.match(/Chrome\/([\d.]+)/);
+  L.push("ব্রাউজার: " + (cm ? "Chrome " + cm[1] : ua.slice(0, 60)) + (/; wv\)/.test(ua) ? " (WebView)" : ""));
+  L.push("ঠিকানা: " + location.href);
+  L.push("মানচিত্র লাইব্রেরি: " + (typeof maplibregl !== "undefined" ? "আছে (" + (window.__srcML || "?") + ")" : "নেই ✘"));
+  L.push("গণনা লাইব্রেরি: " + (typeof turf !== "undefined" ? "আছে (" + (window.__srcTF || "?") + ")" : "নেই ✘"));
+  let gl = "নেই ✘";
+  try { const c = document.createElement("canvas"); gl = c.getContext("webgl2") ? "WebGL2 ✔" : (c.getContext("webgl") ? "শুধু WebGL1" : "নেই ✘"); } catch (e) {}
+  L.push("গ্রাফিক্স: " + gl);
+  let ls = "ঠিক ✔";
+  try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); } catch (e) { ls = "বন্ধ ✘ (" + (e && e.name) + ")"; }
+  L.push("লোকাল স্টোরেজ: " + ls);
+  let perm = "জানা যায়নি";
+  try { perm = (await navigator.permissions.query({ name: "geolocation" })).state; } catch (e) {}
+  L.push("লোকেশন অনুমতি: " + perm);
+  let rail = "জানা যায়নি";
+  try { rail = (typeof routeCoords !== "undefined" && routeCoords) ? "লোড হয়েছে (বিন্দু " + routeCoords.length + ", স্টেশন " + stations.length + ")" : "লোড হয়নি"; } catch (e) {}
+  L.push("রেলপথ ডেটা: " + rail);
+  const all = window.__errs || [];
+  L.push("সাম্প্রতিক ত্রুটি (" + all.length + "টি):" + (all.length ? "\n- " + all.slice(-8).join("\n- ") : " নেই"));
+  return L.join("\n");
+}
 
 // লোগো (Cloudinary)
 (function initLogo() {
@@ -226,6 +278,12 @@ byId("miVersion").addEventListener("click", () => { closeDrawer(); uiAlert(APP_N
   img.src = LOGO_URL;
 })();
 // ====UI-END====
+
+// লাইব্রেরি না এলে (ইন্টারনেট ধীর/বন্ধ) অসম্পূর্ণ পেজের বদলে পরিষ্কার বার্তা; মেনু ও মডাল তবু কাজ করবে
+if (typeof maplibregl === "undefined" || typeof turf === "undefined") {
+  showErr("মানচিত্রের লাইব্রেরি লোড হয়নি (ইন্টারনেট ধীর বা বন্ধ হতে পারে)। পেজ রিফ্রেশ করুন। কারণ দেখতে: মেনু → ভার্সন → বিস্তারিত।");
+  throw new Error("libs-missing");
+}
 // ===== রেল-রুট কোর: OSM ডেটা থেকে গ্রাফ বানিয়ে চট্টগ্রাম→কক্সবাজার সবচেয়ে ছোট পথ বের করা =====
 function hav(a, b) {
   const R = 6371000, r = Math.PI / 180;
@@ -838,9 +896,10 @@ function routeEnds(txt, wholeField) {
     return p.length >= 2 ? [p[0], p[p.length - 1]] : null;
   }
   // নামের ঘর ("৮১৫ কক্সবাজার এক্সপ্রেস CXB - CTG"): শেষ "কিছু - কিছু" অংশটি নিই
-  const ms = [...s.matchAll(/([^\s\-–—→>]+)\s*[-–—→>]\s*([^\s\-–—→>]+)/g)];
-  const m = ms[ms.length - 1];
-  return m ? [m[1], m[2]] : null;
+  const re = /([^\s\-–—→>]+)\s*[-–—→>]\s*([^\s\-–—→>]+)/g;
+  let m, last = null;
+  while ((m = re.exec(s)) !== null) last = m;
+  return last ? [last[1], last[2]] : null;
 }
 function dirFromEnds(e) {
   if (!e) return 0;
