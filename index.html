@@ -26,10 +26,10 @@ window.addEventListener("unhandledrejection", function (ev) {
 
   .topbar { position: absolute; top: calc(var(--mb) + 10px); left: 10px; right: 10px; z-index: 5; background: #0b5d3b; color: #fff;
     border-radius: 22px; padding: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.3); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .topbar select { flex: 1; min-width: 0; padding: 10px; font-size: 12px; border-radius: 12px; border: 0; }
-  .topbar button { padding: 10px 12px; font-size: 12px; font-weight: 700; border-radius: 12px; border: 0; background: #ffb400; cursor: pointer; }
+  .topbar select { flex: 1; min-width: 0; padding: 10px; font-size: 16px; border-radius: 12px; border: 0; }
+  .topbar button { padding: 10px 12px; font-size: 15px; font-weight: 700; border-radius: 12px; border: 0; background: #ffb400; cursor: pointer; }
   .topbar button.on { background: #e53935; color: #fff; }
-  #status { flex-basis: 100%; font-size: 12px; }
+  #status { flex-basis: 100%; font-size: 13px; }
 
   .side { position: absolute; right: 10px; top: calc(var(--mb) + 118px); z-index: 5; display: flex; flex-direction: column; gap: 10px; }
   .side button { width: 54px; height: 54px; border-radius: 50%; border: 0; background: #fff; font-size: 17px; font-weight: 800;
@@ -42,9 +42,9 @@ window.addEventListener("unhandledrejection", function (ev) {
   .where { font-size: 10px; font-weight: 600; color: #333; margin: 0 0 4px; line-height: 1.3; }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .next { font-size: 9px; color: #666; }
-  .next b { font-size: 9px; color: #111; }
+  .next b { font-size: 12px; color: #111; }
   .speed { background: #f3f4f6; border-radius: 10px; padding: 2px 10px; text-align: center; min-width: 52px; }
-  .speed b { font-size: 9px; display: block; line-height: 1.15; }
+  .speed b { font-size: 14px; display: block; line-height: 1.15; }
   .speed span { font-size: 8px; color: #666; }
   .badge { border-radius: 10px; padding: 1px 7px; font-size: 9px; font-weight: 600; background: #eee; color: #555; }
   .badge.live { background: #e6f4ea; color: #1b7a3a; }
@@ -571,7 +571,7 @@ const bearingAt = d => turf.bearing(pointAt(d - 15), pointAt(d + 15));
 // ---------- ম্যাপ ----------
 const SAT = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const map = new maplibregl.Map({
-  container: "map", center: [90.4, 23.7], zoom: 6.2, maxPitch: 80,
+  container: "map", center: [90.4, 23.7], zoom: 6.2, maxPitch: 80, maxZoom: 21.5,
   style: { version: 8,
     sources: {
       osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, maxzoom: 19, attribution: "© OpenStreetMap" },
@@ -653,6 +653,7 @@ const geo = { text: "", ll: null, t: 0, busy: false };
 let live = { has: false, ageMs: 0, recv: 0, n: 0 };
 let lastLoc = null, lastNow = 0;
 let mode = "2d", following = false, flying = false, camBearing = 0;
+let userZoom = 17.2, userPitch = 66, manualBearing = false, lastCam = { c: null, b: 0, z: 0, p: 0 };
 let pollBusy = false;
 
 // পিছনের দিকে off মিটার দূরের বিন্দু ও দিক
@@ -828,8 +829,13 @@ function step(now, dt) {
   pulseEl.style.display = map.getZoom() < 15.5 ? "flex" : "none";
 
   if (mode === "3d" && following && !flying) {
-    camBearing = lerpAngle(camBearing, head.heading, 0.04);
-    map.jumpTo({ center: head.ll, bearing: camBearing, pitch: 68, zoom: 16.8, padding: { top: 0, bottom: 230, left: 0, right: 0 } });
+    if (!manualBearing) camBearing = lerpAngle(camBearing, head.heading, 0.04);
+    // ক্যামেরা শুধু ট্রেনের সাথে সরে; জুম/কোণ ব্যবহারকারীর ঠিক করা মান থাকে
+    const c = head.ll, L = lastCam;
+    if (!L.c || Math.abs(L.c[0] - c[0]) > 1e-8 || Math.abs(L.c[1] - c[1]) > 1e-8 || Math.abs(L.b - camBearing) > 0.02 || L.z !== userZoom || L.p !== userPitch) {
+      lastCam = { c: c.slice(), b: camBearing, z: userZoom, p: userPitch };
+      map.jumpTo({ center: c, bearing: camBearing, pitch: userPitch, zoom: userZoom, padding: { top: 0, bottom: 150, left: 0, right: 0 } });
+    }
   }
 }
 
@@ -1003,11 +1009,14 @@ window.nativeLocation = function (lat, lng, speed, acc) {
   if (nativeMode) handleMyPos(nativeFix);
 };
 // App Inventor-এর নেটিভ WebViewer-এ JavaScript চালানোর ব্লক নেই; তাই অ্যাপ WebViewString-এ "lat,lng,speed,acc" লিখে রাখে, পেজ প্রতি সেকেন্ডে পড়ে
-let lastWvs = "";
+let lastWvs = "", gpsOffAt = 0;
+const gpsIsOff = () => gpsOffAt && Date.now() - gpsOffAt < 6000;
 setInterval(function () {
   try {
     if (!window.AppInventor || !window.AppInventor.getWebViewString) return;
     const s = String(window.AppInventor.getWebViewString() || "");
+    if (s.indexOf("GPS_OFF") === 0) { gpsOffAt = Date.now(); } else if (s.indexOf("GPS_ON") === 0 || /^-?\d/.test(s)) { gpsOffAt = 0; }
+    if (gpsOffAt && nativeMode) { stopSharing(); uiAlert("আপনার জিপিএস বন্ধ আছে। প্রথমে এটি চালু করুন।"); }
     if (!s || s === lastWvs) return;
     lastWvs = s;
     const a = s.split(",");
@@ -1034,7 +1043,8 @@ let starting = false;
 async function startSharing() {
   if (starting) return;
   if (!select.value) { uiAlert("আগে ট্রেন সিলেক্ট করুন।"); return; }
-  const appMode = hasNative() || /[?&]app=1/.test(location.search);
+  const appMode = hasNative() || /[?&]app=1/.test(location.search) || !!(window.AppInventor && window.AppInventor.getWebViewString);
+  if (appMode && gpsIsOff()) { uiAlert("আপনার জিপিএস বন্ধ আছে। প্রথমে এটি চালু করুন।"); return; }
   if (!appMode && !("geolocation" in navigator)) { uiAlert("আপনার ব্রাউজারে GPS সাপোর্ট নেই।"); return; }
   starting = true;
   const agreed = await uiConfirm("এই ট্রেনের যাত্রী হিসেবে আপনার লোকেশন সবার সাথে শেয়ার করা হবে। চালিয়ে যাবেন?");
@@ -1045,9 +1055,7 @@ async function startSharing() {
     $("myStatus").textContent = "⏳ অ্যাপ থেকে GPS অবস্থানের অপেক্ষা…";
     if (nativeFix) handleMyPos(nativeFix);
     if (!hasNative()) {
-      askAppOpenSettings();
-      $("myStatus").textContent = "⏳ GPS চালু করুন; সেটিংস খুলছে…";
-      setTimeout(() => { if (nativeMode && !hasNative()) askAppOpenSettings(); }, 15000);
+      $("myStatus").textContent = "⏳ GPS অবস্থান পাওয়ার অপেক্ষা…";
     }
     shareBtn.textContent = "শেয়ার বন্ধ করুন"; shareBtn.classList.add("on");
     return;
@@ -1116,10 +1124,15 @@ btn3d.addEventListener("click", () => {
   btn3d.classList.add("active"); btn3d.innerHTML = "2D<small>ফিরে যান</small>";
   setLayer(true);
   camBearing = head.heading || 0;
-  map.flyTo({ center: head.ll, zoom: 16.8, pitch: 68, bearing: camBearing, duration: 2800,
-    padding: { top: 0, bottom: 230, left: 0, right: 0 }, essential: true });
+  userZoom = 17.2; userPitch = 66; manualBearing = false; lastCam = { c: null, b: 0, z: 0, p: 0 };
+  map.flyTo({ center: head.ll, zoom: userZoom, pitch: userPitch, bearing: camBearing, duration: 1800,
+    padding: { top: 0, bottom: 150, left: 0, right: 0 }, essential: true });
   map.once("moveend", () => { flying = false; following = true; });
 });
+// ব্যবহারকারীর আঙুলের জুম/কোণ/ঘোরানো মনে রাখা (ক্যামেরা-ফলো এগুলো আর ভাঙে না)
+map.on("zoom", e => { if (e.originalEvent && mode === "3d") userZoom = map.getZoom(); });
+map.on("pitch", e => { if (e.originalEvent && mode === "3d") userPitch = map.getPitch(); });
+map.on("rotate", e => { if (e.originalEvent && mode === "3d") { manualBearing = true; camBearing = map.getBearing(); } });
 map.on("dragstart", e => { if (e.originalEvent && following) { following = false; btn3d.innerHTML = "🎯<small>ট্রেনে ফোকাস</small>"; } });
 
 // ---------- শুরু ----------
