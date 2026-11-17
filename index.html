@@ -705,9 +705,24 @@ function addRouteLayers() {
   routeLayersAdded = true;
   map.addSource("route", { type: "geojson", data: route });
   map.addLayer({ id: "route-casing", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": ["interpolate", ["linear"], ["zoom"], 14, 0.9, 17, 0.2] } }, "train");
+    paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": ["interpolate", ["linear"], ["zoom"], 14, 0.9, 16, 0.1, 17, 0] } }, "train");
   map.addLayer({ id: "route-line", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#d81b6a", "line-width": 3.5, "line-opacity": ["interpolate", ["linear"], ["zoom"], 14, 1, 17, 0.35] } }, "train");
+    paint: { "line-color": "#d81b6a", "line-width": 3.5, "line-opacity": ["interpolate", ["linear"], ["zoom"], 14, 1, 16, 0.25, 17, 0] } }, "train");
+
+  // ---- বাস্তব মাপের রেল ট্র্যাক (বাঁধ, পাথর, স্লিপার, দুই পাত) ----
+  // মিটারকে পিক্সেলে রূপান্তর: জুম বাড়লে প্রতি জুমে দ্বিগুণ (অক্ষাংশ ~২২°)
+  const mpx = m => ["interpolate", ["exponential", 2], ["zoom"], 14, m * 0.2258, 22, m * 57.8];
+  const fadeIn = ["interpolate", ["linear"], ["zoom"], 15.2, 0, 16.2, 1];
+  const L = { "line-cap": "butt", "line-join": "round" };
+  map.addLayer({ id: "trk-bank", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#6f9142", "line-width": mpx(10), "line-opacity": ["interpolate", ["linear"], ["zoom"], 15.2, 0, 16.2, 0.9] } }, "train");
+  map.addLayer({ id: "trk-ballast", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#8f8a80", "line-width": mpx(4.8), "line-opacity": fadeIn } }, "train");
+  map.addLayer({ id: "trk-sleepers", type: "line", source: "route", layout: L,
+    paint: { "line-color": "#6e6354", "line-width": mpx(2.8), "line-dasharray": [0.09, 0.13],
+             "line-opacity": ["interpolate", ["linear"], ["zoom"], 16.2, 0, 17.2, 1] } }, "train");
+  [-0.75, 0.75].forEach((o, i) => map.addLayer({ id: "trk-rail" + i, type: "line", source: "route", layout: L,
+    paint: { "line-color": "#d4d8dd", "line-width": mpx(0.2), "line-offset": mpx(o), "line-opacity": ["interpolate", ["linear"], ["zoom"], 16.2, 0, 17.2, 1] } }, "train"));
   stations.forEach(s => {
     const el = document.createElement("div");
     el.className = "st" + (btnLayer.dataset.sat ? "" : " osm");
@@ -1025,6 +1040,14 @@ setInterval(function () {
   } catch (e) {}
 }, 1000);
 // অ্যাপ থেকে GPS ফিড না এলে অ্যাপকে লোকেশন সেটিংস খুলতে বলা (অ্যাপ WebViewString-এ "NEED_GPS" দেখলে খোলে)
+let cmdTimer = null;
+function sendAppCommand(cmd) {
+  if (!(window.AppInventor && window.AppInventor.setWebViewString)) return;
+  if (cmdTimer) clearInterval(cmdTimer);
+  let n = 0;
+  const go = () => { try { window.AppInventor.setWebViewString(cmd); } catch (e) {} if (++n >= 12) { clearInterval(cmdTimer); cmdTimer = null; } };
+  go(); cmdTimer = setInterval(go, 250);
+}
 function askAppOpenSettings() {
   try { if (window.AppInventor && window.AppInventor.setWebViewString) window.AppInventor.setWebViewString("NEED_GPS|" + Date.now()); } catch (e) {}
 }
@@ -1053,6 +1076,7 @@ async function startSharing() {
   if (!agreed || watchId !== null) return;
   if (appMode) {   // অ্যাপের LocationSensor থেকে আসা অবস্থান ব্যবহার
     nativeMode = true; watchId = "native";
+    if (!hasNative()) sendAppCommand("START_GPS");
     $("myStatus").textContent = "⏳ অ্যাপ থেকে GPS অবস্থানের অপেক্ষা…";
     if (nativeFix) handleMyPos(nativeFix);
     if (!hasNative()) {
@@ -1081,6 +1105,7 @@ async function startSharing() {
 }
 function stopSharing() {
   if (watchId !== null && watchId !== "native") navigator.geolocation.clearWatch(watchId);
+  if (nativeMode) sendAppCommand("STOP_GPS");
   watchId = null; nativeMode = false;
   if (myMarker) { myMarker.remove(); myMarker = null; }
   $("myStatus").textContent = "";
