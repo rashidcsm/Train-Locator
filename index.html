@@ -273,6 +273,7 @@ async function diagText() {
   let ls = "ঠিক ✔";
   try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); } catch (e) { ls = "বন্ধ ✘ (" + (e && e.name) + ")"; }
   L.push("লোকাল স্টোরেজ: " + ls);
+  L.push("অ্যাপ থেকে সর্বশেষ বার্তা: " + (lastWvs ? lastWvs.slice(0, 50) : "(খালি)"));
   L.push("অ্যাপের GPS ফিড: " + (window.AppInventor ? (nativeFix ? "আসছে ✔ (" + Math.round((Date.now() - nativeFix.t) / 1000) + " সে আগে)" : "সংযুক্ত, ডেটা আসেনি") : "নেই"));
   L.push("স্টেশন: ম্যাপে " + (typeof stations !== "undefined" ? stations.length : 0) + "টি; উৎসে: " + (window.__stationDiag ? window.__stationDiag.join(", ") : "—"));
   let perm = "জানা যায়নি";
