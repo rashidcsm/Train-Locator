@@ -59,8 +59,9 @@ window.addEventListener("unhandledrejection", function (ev) {
   .note { font-size: 8px; color: #999; margin-top: 2px; text-align: center; }
   #myStatus { font-size: 9px; color: #1565c0; margin-top: 2px; text-align: center; }
 
-  .st { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-  .st i { width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 3px solid #b4155a; box-shadow: 0 0 3px #000; }
+  .st { display: flex; flex-direction: column-reverse; align-items: center; pointer-events: none; }
+  .st i { position: relative; width: 14px; height: 14px; margin: 0 0 4px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #b4155a; border: 2px solid #fff; box-shadow: 0 0 3px #000; }
+  .st i::after { content: ""; position: absolute; left: 3px; top: 3px; width: 4px; height: 4px; border-radius: 50%; background: #fff; }
   .st span { margin-top: 2px; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; }
   .st.osm span { color: #222; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
   .lowzoom .st span { display: none; }
@@ -497,7 +498,7 @@ const POLL_MS = 6000;          // ম্যাপের ডেটা আনা
 const SEND_MS = 10000;         // যাত্রীর লোকেশন পাঠানো
 const STALE_MS = 5 * 60000;    // এর বেশি পুরনো = "পুরনো তথ্য"
 const EXTRAP_MAX = 25;         // নতুন তথ্য না এলে সর্বোচ্চ কত সেকেন্ড আন্দাজে এগোবে
-const OFF_ROUTE = 400;         // রেললাইন থেকে এত মিটারের বেশি দূরে হলে লাইনে বসানো হয় না
+const OFF_ROUTE = 3000;        // GPS রেললাইন থেকে এত মিটারের মধ্যে থাকলে ট্রেন সবসময় লাইনে বসানো হয় (এর বেশি দূরে = ট্রেনে নেই ধরে আসল GPS অবস্থান)
 
 const START_APPROX = [91.8310, 22.3560], END_APPROX = [91.9830, 21.4430];
 
@@ -508,61 +509,76 @@ const EXTRA_STATIONS = [
 ];
 
 // ---------- নির্ধারিত স্টেশনের ক্রম (চট্টগ্রাম → কক্সবাজার) ----------
-// কেবল এই স্টেশনগুলো, এই ক্রমে দেখানো হবে। "n" = অনুসন্ধানের নামের রূপভেদ (বাংলা/ইংরেজি)
+// c  = যাচাই-করা অবস্থান (সবচেয়ে নির্ভরযোগ্য, সরাসরি ব্যবহার হয়)
+// n  = OSM-এর নাম মেলানোর রূপভেদ; fb = ফাইলে পাওয়া আনুমানিক অবস্থান [দ্রাঘিমা, অক্ষাংশ] (OSM-এ না মিললে এবং লাইনের ১৫০০ মিটারের মধ্যে থাকলে)
 const ROUTE_ORDER = [
   { name: "চট্টগ্রাম স্টেশন", n: [], c: [91.830005, 22.333894] },
   { name: "চট্টগ্রাম জং", n: [], c: [91.8119180, 22.3426682] },
-  { name: "ঝাউতলা", n: ["ঝাউতলা", "jhautala", "jhautola"] },
-  { name: "পলিটেকনিক", n: ["পলিটেকনিক", "polytechnic"] },
-  { name: "ষোলশহর", n: ["ষোলশহর", "সোলশহর", "sholoshahar", "solashahar", "sholashahar"] },
-  { name: "জানআলীহাট", n: ["জানআলীহাট", "জানালীহাট", "জানআলিহাট", "janalihat", "janaalihat"] },
-  { name: "গোমদন্ডী", n: ["গোমদন্ডী", "গোমদণ্ডী", "গোমদণ্ডি", "gomdandi", "gomdondi"] },
-  { name: "বেঙ্গুরা", n: ["বেঙ্গুরা", "বেংগুরা", "benguara", "bengura"] },
-  { name: "ধলঘাট", n: ["ধলঘাট", "dholghat", "dhalghat"] },
-  { name: "খানমহনা", n: ["খানমহনা", "খানমোহনা", "khanmohona", "khanmahona"] },
-  { name: "পটিয়া", n: ["পটিয়া", "patiya"] },
-  { name: "চক্রশালা", n: ["চক্রশালা", "chakrashala", "chakrasala"] },
-  { name: "কাঞ্চননগর", n: ["কাঞ্চননগর", "কাঞ্চনগর", "kanchannagar", "kanchan"] },
-  { name: "খানহাট", n: ["খানহাট", "khanhat"] },
-  { name: "হাসিমপুর", n: ["হাসিমপুর", "হাশিমপুর", "hasimpur", "hashimpur"] },
-  { name: "দোহাজারী", n: ["দোহাজারী", "দোহাজারি", "dohazari"] },
-  { name: "সাতকানিয়া", n: ["সাতকানিয়া", "satkania"] },
-  { name: "লোহাগাড়া", n: ["লোহাগাড়া", "lohagara"] },
+  { name: "ঝাউতলা", n: ["ঝাউতলা", "jhautala", "jhautola"], fb: [91.837, 22.346] },
+  { name: "পলিটেকনিক", n: ["পলিটেকনিক", "polytechnic"], fb: [91.838, 22.361] },
+  { name: "ষোলশহর", n: ["ষোলশহর", "সোলশহর", "sholoshahar", "solashahar", "sholashahar", "sholashohor"], fb: [91.839, 22.370] },
+  { name: "জানআলীহাট", n: ["জানআলীহাট", "জানালীহাট", "জানআলিহাট", "janalihat", "janaalihat", "janalihat"], fb: [91.805, 22.353] },
+  { name: "গোমদন্ডী", n: ["গোমদন্ডী", "গোমদণ্ডী", "গোমদণ্ডি", "gomdandi", "gomdondi"], fb: [91.905, 22.370] },
+  { name: "বেঙ্গুরা", n: ["বেঙ্গুরা", "বেংগুরা", "benguara", "bengura"], fb: [91.939, 22.350] },
+  { name: "ধলঘাট", n: ["ধলঘাট", "dholghat", "dhalghat"], fb: [91.966, 22.333] },
+  { name: "খানমহনা", n: ["খানমহনা", "খানমোহনা", "khanmohona", "khanmahona"], fb: [91.986, 22.310] },
+  { name: "পটিয়া", n: ["পটিয়া", "patiya"], fb: [91.996, 22.288] },
+  { name: "চক্রশালা", n: ["চক্রশালা", "chakrashala", "chakrasala"], fb: [92.019, 22.259] },
+  { name: "কাঞ্চননগর", n: ["কাঞ্চননগর", "কাঞ্চনগর", "kanchannagar", "kanchan"], fb: [92.055, 22.225] },
+  { name: "খানহাট", n: ["খানহাট", "khanhat"], fb: [92.087, 22.188] },
+  { name: "হাসিমপুর", n: ["হাসিমপুর", "হাশিমপুর", "hasimpur", "hashimpur"], fb: [92.125, 22.155] },
+  { name: "দোহাজারী", n: ["দোহাজারী", "দোহাজারি", "dohazari"], fb: [92.075, 22.125] },
+  { name: "সাতকানিয়া", n: ["সাতকানিয়া", "satkania"], fb: [92.172, 21.987] },
+  { name: "লোহাগাড়া", n: ["লোহাগাড়া", "lohagara"], c: [92.071737, 21.986294] },
   { name: "হারবাং", n: ["হারবাং", "হারবাঙ", "harbang"] },
-  { name: "চকরিয়া", n: ["চকরিয়া", "chakaria", "chokoria"] },
-  { name: "ডুলাহাজারা", n: ["ডুলাহাজারা", "dulahazara"] },
-  { name: "ইসলামাবাদ", n: ["ইসলামাবাদ", "islamabad"] },
-  { name: "রামু", n: ["রামু", "ramu"] },
-  { name: "কক্সবাজার", n: ["কক্সবাজার", "coxsbazar", "coxbazar", "cox"] }
+  { name: "চকরিয়া", n: ["চকরিয়া", "chakaria", "chokoria"], fb: [92.091, 21.722] },
+  { name: "ডুলাহাজারা", n: ["ডুলাহাজারা", "dulahazara"], fb: [92.104, 21.620] },
+  { name: "ইসলামাবাদ", n: ["ইসলামাবাদ", "islamabad"], fb: [92.208, 21.511] },
+  { name: "রামু", n: ["রামু", "ramu"], fb: [92.172, 21.438] },
+  { name: "কক্সবাজার", n: ["কক্সবাজার", "coxsbazar", "coxbazar", "cox"], fb: [92.005, 21.383] }
 ];
 // বানানের রূপভেদ মিলিয়ে নেওয়ার জন্য নাম সরল করা
 const normName = s => String(s || "").normalize("NFC").toLowerCase()
-  .replace(/[\u200c\u200d\s\-\.'’]/g, "")
+  .replace(/[‌‍\s\-\.'’]/g, "")
   .replace(/ণ/g, "ন").replace(/ষ/g, "শ").replace(/ী/g, "ি").replace(/ূ/g, "ু").replace(/ড়/g, "র")
-  .replace(/রেলওয়ে|রেলস্টেশন|স্টেশন|জংশন|জং|railwaystation|junction|station|জং\./g, "");
+  .replace(/রেলওয়ে|রেলস্টেশন|স্টেশন|জংশন|জং|railwaystation|junction|station/g, "");
 
-// OSM-এর কাঁচা স্টেশন থেকে নির্ধারিত তালিকা বানানো; কমপক্ষে ৮টি না মিললে পুরনো পদ্ধতিতে ফিরে যাবে
+// প্রতিটি স্টেশনের অবস্থান: যাচাই-করা (c) → OSM-এর নাম-মিল → ফাইলের আনুমানিক (fb)।
+// শেষে ক্রম (চট্টগ্রাম→কক্সবাজার) ভাঙে এমন ভুল-অবস্থানের স্টেশন বাদ দেওয়া হয়।
 function buildOrderedStations(coords, idx, raw, extra) {
-  const out = [], missing = [];
-  ROUTE_ORDER.forEach(e => {
-    const keys = e.n.map(normName);
+  const cand = [], missing = [];
+  ROUTE_ORDER.forEach((e, i) => {
     let best = null;
-    if (e.c) {   // নির্দিষ্ট অবস্থান দেওয়া থাকলে নাম না মিলিয়ে সরাসরি সেটাই
+    if (e.c) {
       const r0 = snapToRoute(coords, idx.cum, e.c, null, 0);
-      if (r0 && r0.off <= 2500) out.push({ name: e.name, c: e.c, d: r0.d, off: r0.off }); else missing.push(e.name);
-      return;
+      if (r0 && r0.off <= 2500) best = { c: e.c, d: r0.d, off: r0.off, src: "যাচাই-করা", w: 3 };
     }
-    raw.concat(extra || []).forEach(s => {
-      const a = normName(s.name), b = normName(s.en);
-      if (!keys.some(k => k && (a.indexOf(k) !== -1 || b.indexOf(k) !== -1))) return;
-      const r = snapToRoute(coords, idx.cum, s.c, null, 0);
-      if (r && (!best || r.off < best.off)) best = { s: s, d: r.d, off: r.off };
-    });
-    if (best && best.off <= 2500) out.push({ name: e.name, c: best.s.c, d: best.d, off: best.off });
-    else missing.push(e.name);
+    if (!best && e.n.length) {
+      const keys = e.n.map(normName);
+      raw.concat(extra || []).forEach(s => {
+        const a = normName(s.name), b = normName(s.en);
+        if (!keys.some(k => k && (a.indexOf(k) !== -1 || b.indexOf(k) !== -1))) return;
+        const r = snapToRoute(coords, idx.cum, s.c, null, 0);
+        if (r && r.off <= 2500 && (!best || r.off < best.off)) best = { c: s.c, d: r.d, off: r.off, src: "OSM", w: 2 };
+      });
+    }
+    if (!best && e.fb) {
+      const r1 = snapToRoute(coords, idx.cum, e.fb, null, 0);
+      if (r1 && r1.off <= 1500) best = { c: e.fb, d: r1.d, off: r1.off, src: "ফাইল", w: 1 };
+    }
+    if (best) cand.push(Object.assign({ name: e.name, i: i }, best)); else missing.push(e.name);
   });
-  out.sort((a, b) => a.d - b.d);
-  return { list: out, missing: missing };
+  // ক্রম অনুযায়ী দূরত্ব (d) বাড়তে থাকা সবচেয়ে নির্ভরযোগ্য উপসারি রাখা
+  const n = cand.length, score = [], prev = [];
+  for (let a = 0; a < n; a++) {
+    score[a] = cand[a].w; prev[a] = -1;
+    for (let b = 0; b < a; b++) if (cand[b].d < cand[a].d - 30 && score[b] + cand[a].w > score[a]) { score[a] = score[b] + cand[a].w; prev[a] = b; }
+  }
+  let end = -1; for (let a = 0; a < n; a++) if (end < 0 || score[a] > score[end]) end = a;
+  const keep = {}; for (let a = end; a >= 0; a = prev[a]) keep[a] = true;
+  const list = [];
+  cand.forEach((c, a) => { if (keep[a]) list.push({ name: c.name, c: c.c, d: c.d, off: c.off, src: c.src }); else missing.push(c.name + " (ক্রম মেলেনি)"); });
+  return { list: list, missing: missing };
 }
 
 // ---------- OSM রেললাইন (চট্টগ্রাম–কক্সবাজার) ----------
@@ -640,7 +656,7 @@ const map = new maplibregl.Map({
       { id: "sat", type: "raster", source: "sat", layout: { visibility: "none" } } ] }
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
-map.on("zoom", () => document.body.classList.toggle("lowzoom", map.getZoom() < 10.5));
+map.on("zoom", () => document.body.classList.toggle("lowzoom", map.getZoom() < 9.5));
 let mapLoaded = false, routeLayersAdded = false;
 
 // ---------- ট্রেনের গঠন (ইঞ্জিন + ৭টি কোচ), সব মাপ মিটারে ----------
@@ -786,7 +802,7 @@ function addRouteLayers() {
     el.className = "st" + (btnLayer.dataset.sat ? "" : " osm");
     el.innerHTML = "<i></i><span></span>"; el.lastChild.textContent = s.name;
     s.el = el;
-    new maplibregl.Marker({ element: el }).setLngLat(idx.pointAt(s.d)).addTo(map);
+    new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat(idx.pointAt(s.d)).addTo(map);
   });
 }
 
@@ -801,9 +817,9 @@ $("noteTxt").textContent = "রেললাইনের ডেটা লোড �
   route = turf.lineString(routeCoords);
   const rawAll = dedupeStations(rail.stationsRaw);
   EXTRA_STATIONS.forEach(x => { if (!rawAll.some(s => s.name === x.name)) rawAll.push(x); });
-  window.__stationDiag = rawAll.map(s => { const r = snapToRoute(routeCoords, idx.cum, s.c, null, 0); return s.name + " (" + (r ? Math.round(r.off) + "মি" : "?") + ")"; });
   const ord = buildOrderedStations(routeCoords, idx, rawAll, EXTRA_STATIONS);
   window.__stationMissing = ord.missing;
+  window.__stationDiag = ord.list.map(s => s.name + " [" + s.src + " " + Math.round(s.off) + "মি]");
   stations = ord.list.length >= 8 ? ord.list : snapStations(routeCoords, idx, rawAll);
   allStations = rawAll.filter(s => s.name);
   $("noteTxt").textContent = "রুট ও স্টেশন: OpenStreetMap";
@@ -1228,4 +1244,4 @@ setInterval(geoTick, 5000);
 requestAnimationFrame(tick);
 </script>
 </body>
-</html
+</html>
