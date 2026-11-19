@@ -426,8 +426,9 @@ function extractRoute(elements, startApprox, endApprox) {
     m.sort((a, b) => hav(a.c, approx) - hav(b.c, approx));
     return hav(m[0].c, approx) < 25000 ? m[0].c : approx;
   };
-  const startC = pick(/চট্টগ্রাম|Chattogram|Chittagong/i, startApprox);
-  const endC = pick(/কক্সবাজার|Cox/i, endApprox);
+  let startC = pick(/চট্টগ্রাম|Chattogram|Chittagong/i, startApprox);
+  let endC = pick(/কক্সবাজার|Cox/i, endApprox);
+  try { startC = ROUTE_ORDER[0].c; endC = ROUTE_ORDER[ROUTE_ORDER.length - 1].c; } catch (e) {}   // যাচাই-করা স্টেশন থেকেই শুরু ও শেষ
 
   const { pts, adj } = buildGraph(elements);
   if (pts.length < 2) return null;
@@ -593,7 +594,7 @@ const QUERY = '[out:json][timeout:60];' +
   'way["railway"="rail"]["service"!~"siding|yard|spur|crossover"](21.38,91.78,22.42,92.15);out geom;' +
   'nwr["railway"~"^(station|halt|stop)$"](21.38,91.78,22.42,92.15);out center;' +
   'nwr["public_transport"~"^(station|stop_position)$"]["train"="yes"](21.38,91.78,22.42,92.15);out center;';
-const CACHE_KEY = "railcache_ctg_coxs_v3";
+const CACHE_KEY = "railcache_ctg_coxs_v4";
 
 async function fetchOverpass() {
   for (const url of OVERPASS) {
@@ -616,7 +617,7 @@ async function getRail() {
     if (cached && cached.coords && cached.coords.length > 50) return cached;
   } catch (e) {}
   try {   // সাইটে রাখা তৈরি ফাইল (rail.json): অ্যাপে সবচেয়ে নির্ভরযোগ্য
-    const rr = await fetch("rail.json?v=2");
+    const rr = await fetch("rail.json?v=3");
     if (rr.ok) { const j = await rr.json(); if (j && j.coords && j.coords.length > 50) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(j)); } catch (e) {} return j; } }
   } catch (e) {}
   const elements = await fetchOverpass();
@@ -642,7 +643,14 @@ const fmtAge = s => s < 60 ? bn(Math.round(s)) + " সে" : s < 3600 ? bn(Math.
 
 // ---------- রুট অবস্থা (পরে লোড হয়) ----------
 let routeCoords = null, idx = null, route = null, total = 0, stations = [];
-const pointAt = d => idx.pointAt(d);
+// রুটের শুরু/শেষের বাইরেও (ট্রেন প্রান্তে থাকলে পেছনের বগিগুলো) সোজা লাইন ধরে বাড়ানো: নইলে সব বগি এক বিন্দুতে জমে আড়াআড়ি দেখায়
+const pointAt = d => {
+  const T = idx.total;
+  if (d >= 0 && d <= T) return idx.pointAt(d);
+  const edge = d < 0 ? 0 : T, p = idx.pointAt(edge), q = idx.pointAt(d < 0 ? Math.min(T, 40) : Math.max(0, T - 40));
+  const out = turf.bearing(turf.point(q), turf.point(p));   // ভেতর থেকে প্রান্তের দিকে
+  return turf.destination(turf.point(p), Math.abs(d - edge), out, { units: "meters" }).geometry.coordinates;
+};
 const bearingAt = d => turf.bearing(pointAt(d - 15), pointAt(d + 15));
 
 // ---------- ম্যাপ ----------
@@ -817,7 +825,13 @@ $("noteTxt").textContent = "রেললাইনের ডেটা লোড �
   let rail = null;
   try { rail = await getRail(); } catch (e) {}
   if (!rail) { $("noteTxt").textContent = "রেললাইনের ডেটা আনা যায়নি; ট্রেন সরাসরি GPS অবস্থানে দেখানো হবে।"; return; }
-  routeCoords = rail.coords;
+  routeCoords = rail.coords.slice();
+  try {   // রুটের দুই প্রান্ত যদি স্টেশন থেকে সরে থাকে, সোজা সংযোগ দিয়ে স্টেশন পর্যন্ত টানা
+    const S0 = ROUTE_ORDER[0].c, E0 = ROUTE_ORDER[ROUTE_ORDER.length - 1].c;
+    const gs = hav(S0, routeCoords[0]), ge = hav(E0, routeCoords[routeCoords.length - 1]);
+    if (gs > 20 && gs < 4000) routeCoords.unshift(S0);
+    if (ge > 20 && ge < 4000) routeCoords.push(E0);
+  } catch (e) {}
   idx = makeIndex(routeCoords); total = idx.total;
   route = turf.lineString(routeCoords);
   const rawAll = dedupeStations(rail.stationsRaw);
