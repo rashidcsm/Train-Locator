@@ -509,33 +509,35 @@ const EXTRA_STATIONS = [
 ];
 
 // ---------- নির্ধারিত স্টেশনের ক্রম (চট্টগ্রাম → কক্সবাজার) ----------
-// c  = যাচাই-করা অবস্থান (সবচেয়ে নির্ভরযোগ্য, সরাসরি ব্যবহার হয়)
+// c  = আপনার দেওয়া যাচাই-করা অবস্থান [দ্রাঘিমা, অক্ষাংশ] (সরাসরি ব্যবহার হয়; লাইনের ২.৫ কিমির মধ্যে না পড়লে নাম দিয়ে OSM থেকে খোঁজা হয়)
 // n  = OSM-এর নাম মেলানোর রূপভেদ; fb = ফাইলে পাওয়া আনুমানিক অবস্থান [দ্রাঘিমা, অক্ষাংশ] (OSM-এ না মিললে এবং লাইনের ১৫০০ মিটারের মধ্যে থাকলে)
 const ROUTE_ORDER = [
-  { name: "চট্টগ্রাম স্টেশন", n: [], c: [91.830005, 22.333894] },
-  { name: "চট্টগ্রাম জং", n: [], c: [91.8119180, 22.3426682] },
-  { name: "ঝাউতলা", n: ["ঝাউতলা", "jhautala", "jhautola"], fb: [91.837, 22.346] },
-  { name: "পলিটেকনিক", n: ["পলিটেকনিক", "polytechnic"], fb: [91.838, 22.361] },
-  { name: "ষোলশহর", n: ["ষোলশহর", "সোলশহর", "sholoshahar", "solashahar", "sholashahar", "sholashohor"], fb: [91.839, 22.370] },
-  { name: "জানআলীহাট", n: ["জানআলীহাট", "জানালীহাট", "জানআলিহাট", "janalihat", "janaalihat", "janalihat"], fb: [91.805, 22.353] },
-  { name: "গোমদন্ডী", n: ["গোমদন্ডী", "গোমদণ্ডী", "গোমদণ্ডি", "gomdandi", "gomdondi"], fb: [91.905, 22.370] },
-  { name: "বেঙ্গুরা", n: ["বেঙ্গুরা", "বেংগুরা", "benguara", "bengura"], fb: [91.939, 22.350] },
-  { name: "ধলঘাট", n: ["ধলঘাট", "dholghat", "dhalghat"], fb: [91.966, 22.333] },
-  { name: "খানমহনা", n: ["খানমহনা", "খানমোহনা", "khanmohona", "khanmahona"], fb: [91.986, 22.310] },
-  { name: "পটিয়া", n: ["পটিয়া", "patiya"], fb: [91.996, 22.288] },
-  { name: "চক্রশালা", n: ["চক্রশালা", "chakrashala", "chakrasala"], fb: [92.019, 22.259] },
-  { name: "কাঞ্চননগর", n: ["কাঞ্চননগর", "কাঞ্চনগর", "kanchannagar", "kanchan"], fb: [92.055, 22.225] },
-  { name: "খানহাট", n: ["খানহাট", "khanhat"], fb: [92.087, 22.188] },
-  { name: "হাসিমপুর", n: ["হাসিমপুর", "হাশিমপুর", "hasimpur", "hashimpur"], fb: [92.125, 22.155] },
-  { name: "দোহাজারী", n: ["দোহাজারী", "দোহাজারি", "dohazari"], fb: [92.075, 22.125] },
-  { name: "সাতকানিয়া", n: ["সাতকানিয়া", "satkania"], fb: [92.172, 21.987] },
-  { name: "লোহাগাড়া", n: ["লোহাগাড়া", "lohagara"], c: [92.071737, 21.986294] },
-  { name: "হারবাং", n: ["হারবাং", "হারবাঙ", "harbang"] },
-  { name: "চকরিয়া", n: ["চকরিয়া", "chakaria", "chokoria"], fb: [92.091, 21.722] },
-  { name: "ডুলাহাজারা", n: ["ডুলাহাজারা", "dulahazara"], fb: [92.104, 21.620] },
-  { name: "ইসলামাবাদ", n: ["ইসলামাবাদ", "islamabad"], fb: [92.208, 21.511] },
-  { name: "রামু", n: ["রামু", "ramu"], fb: [92.172, 21.438] },
-  { name: "কক্সবাজার", n: ["কক্সবাজার", "coxsbazar", "coxbazar", "cox"], fb: [92.005, 21.383] }
+  { name: "চট্টগ্রাম স্টেশন", n: [], c: [91.82956, 22.33402] },
+  { name: "চট্টগ্রাম জং", n: [], c: [91.81194, 22.34261] },
+  { name: "ঝাউতলা", n: ["ঝাউতলা", "jhautala", "jhautola"], c: [91.80769, 22.35608] },
+  { name: "পলিটেকনিক হল্ট", n: [], c: [91.811875, 22.364853] },
+  { name: "পলিটেকনিক", n: ["পলিটেকনিক", "polytechnic"], c: [91.81180, 22.36650] },
+  { name: "ষোলশহর", n: ["ষোলশহর", "সোলশহর", "sholoshahar", "solashahar", "sholashohor"], c: [91.82653, 22.36851] },
+  { name: "জানআলীহাট", n: ["জানআলীহাট", "জানালীহাট", "janalihat"], c: [91.872250, 22.395986] },
+  { name: "গোমদন্ডী", n: ["গোমদন্ডী", "গোমদণ্ডী", "gomdandi", "gomdondi"], c: [91.917382, 22.377812] },
+  { name: "বেঙ্গুরা", n: ["বেঙ্গুরা", "বেংগুরা", "benguara", "bengura"], c: [91.943417, 22.352656] },
+  { name: "ধলঘাট", n: ["ধলঘাট", "dholghat", "dhalghat"], c: [91.957063, 22.336980] },
+  { name: "খানমহনা", n: ["খানমহনা", "খানমোহনা", "khanmohona"], c: [91.970661, 22.318560] },
+  { name: "পটিয়া", n: ["পটিয়া", "patiya"], c: [91.981937, 22.297923] },
+  { name: "চক্রশালা", n: ["চক্রশালা", "chakrashala"], c: [92.003871, 22.279442] },
+  { name: "খরনা", n: ["খরনা", "kharna"], c: [92.014930, 22.261355] },
+  { name: "কাঞ্চননগর", n: ["কাঞ্চননগর", "kanchannagar"], c: [92.028246, 22.235560] },
+  { name: "খানহাট", n: ["খানহাট", "খাঁনহাট", "khanhat"], c: [92.0397278, 22.2161722] },
+  { name: "হাসিমপুর", n: ["হাসিমপুর", "হাশিমপুর", "hasimpur", "hashimpur"], c: [92.052359, 22.195803] },
+  { name: "দোহাজারী", n: ["দোহাজারী", "dohazari"], c: [92.066472, 22.169987] },
+  { name: "সাতকানিয়া", n: ["সাতকানিয়া", "satkania"], c: [92.061920, 22.091932] },
+  { name: "লোহাগাড়া", n: ["লোহাগাড়া", "lohagara"], c: [92.071823, 21.986301] },
+  { name: "হারবাং", n: ["হারবাং", "harbang"], c: [92.047997, 21.850097] },
+  { name: "চকরিয়া", n: ["চকরিয়া", "chakaria", "chokoria"], c: [92.042762, 21.756177] },
+  { name: "ডুলাহাজারা", n: ["ডুলাহাজারা", "দুলাহাজারা", "dulahazara"], c: [92.073612, 21.675046] },
+  { name: "ইসলামাবাদ", n: ["ইসলামাবাদ", "islamabad"], c: [92.053710, 21.563235] },
+  { name: "রামু", n: ["রামু", "ramu"], c: [92.095239, 21.422444] },
+  { name: "কক্সবাজার", n: ["কক্সবাজার", "coxsbazar", "cox"], c: [92.015075, 21.429149] }
 ];
 // বানানের রূপভেদ মিলিয়ে নেওয়ার জন্য নাম সরল করা
 const normName = s => String(s || "").normalize("NFC").toLowerCase()
@@ -660,9 +662,12 @@ map.on("zoom", () => document.body.classList.toggle("lowzoom", map.getZoom() < 9
 let mapLoaded = false, routeLayersAdded = false;
 
 // ---------- ট্রেনের গঠন (ইঞ্জিন + ৭টি কোচ), সব মাপ মিটারে ----------
-const UNITS = [{ kind: "loco", len: 20 }];
-for (let i = 0; i < 7; i++) UNITS.push({ kind: "coach", len: 20.5 });
-const GAP = 1.2;
+// TRAIN_SCALE: ট্রেন ও রেল-ট্র্যাক একসাথে কত গুণ বড় দেখাবে (১ = আসল মাপ)
+const TRAIN_SCALE = 1.7;
+const TS = TRAIN_SCALE;
+const UNITS = [{ kind: "loco", len: 20 * TS }];
+for (let i = 0; i < 7; i++) UNITS.push({ kind: "coach", len: 20.5 * TS });
+const GAP = 1.2 * TS;
 const TRAIN_LEN = UNITS.reduce((a, u) => a + u.len + GAP, 0);
 const RAD = Math.PI / 180;
 
@@ -709,10 +714,10 @@ function unitFeatures(u, ll, b) {
   const sb = Math.sin(b * RAD), cb = Math.cos(b * RAD);
   const kx = 1 / (111320 * Math.cos(ll[1] * RAD)), ky = 1 / 110574;
   const P = (s, w) => [ll[0] + (s * sb + w * cb) * kx, ll[1] + (s * cb - w * sb) * ky];
-  return BOXES[u.kind].map(([s0, s1, w, z0, z1, c]) => ({
+  return BOXES[u.kind].map(([a0, a1, ww, y0, y1, c]) => { const s0 = a0 * TS, s1 = a1 * TS, w = ww * TS, z0 = y0 * TS, z1 = y1 * TS; return ({
     type: "Feature", properties: { b: z0, h: z1, color: c },
     geometry: { type: "Polygon", coordinates: [[P(s0, -w / 2), P(s1, -w / 2), P(s1, w / 2), P(s0, w / 2), P(s0, -w / 2)]] }
-  }));
+  }); });
 }
 
 
@@ -728,7 +733,7 @@ const geo = { text: "", ll: null, t: 0, busy: false };
 let live = { has: false, ageMs: 0, recv: 0, n: 0 };
 let lastLoc = null, lastNow = 0;
 let mode = "2d", following = false, flying = false, camBearing = 0;
-let userZoom = 17.2, userPitch = 66, manualBearing = false, lastCam = { c: null, b: 0, z: 0, p: 0 };
+let userZoom = 16.6, userPitch = 66, manualBearing = false, lastCam = { c: null, b: 0, z: 0, p: 0 };
 let pollBusy = false;
 
 // পিছনের দিকে off মিটার দূরের বিন্দু ও দিক
@@ -785,7 +790,7 @@ function addRouteLayers() {
 
   // ---- বাস্তব মাপের রেল ট্র্যাক (বাঁধ, পাথর, স্লিপার, দুই পাত) ----
   // মিটারকে পিক্সেলে রূপান্তর: জুম বাড়লে প্রতি জুমে দ্বিগুণ (অক্ষাংশ ~২২°)
-  const mpx = m => ["interpolate", ["exponential", 2], ["zoom"], 14, m * 0.2258, 22, m * 57.8];
+  const mpx = m => ["interpolate", ["exponential", 2], ["zoom"], 14, m * TS * 0.2258, 22, m * TS * 57.8];
   const fadeIn = ["interpolate", ["linear"], ["zoom"], 15.2, 0, 16.2, 1];
   const L = { "line-cap": "butt", "line-join": "round" };
   map.addLayer({ id: "trk-bank", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" },
@@ -1226,7 +1231,7 @@ btn3d.addEventListener("click", () => {
   btn3d.classList.add("active"); btn3d.innerHTML = "2D<small>ফিরে যান</small>";
   setLayer(true);
   camBearing = head.heading || 0;
-  userZoom = 17.2; userPitch = 66; manualBearing = false; lastCam = { c: null, b: 0, z: 0, p: 0 };
+  userZoom = 16.6; userPitch = 66; manualBearing = false; lastCam = { c: null, b: 0, z: 0, p: 0 };
   map.flyTo({ center: head.ll, zoom: userZoom, pitch: userPitch, bearing: camBearing, duration: 1800,
     padding: { top: 0, bottom: 150, left: 0, right: 0 }, essential: true });
   map.once("moveend", () => { flying = false; following = true; });
