@@ -49,7 +49,9 @@ window.addEventListener("unhandledrejection", function (ev) {
   .badge { border-radius: 10px; padding: 1px 7px; font-size: 9px; font-weight: 600; background: #eee; color: #555; }
   .badge.live { background: #e6f4ea; color: #1b7a3a; }
   .badge.stale { background: #fff3e0; color: #b45309; }
-  .bar { position: relative; height: 4px; background: #e5e7eb; border-radius: 2px; margin: 14px 12px 2px; }
+  .bar { position: relative; height: 4px; background: #e5e7eb; border-radius: 2px; margin: 24px 12px 2px; }
+  .bar .tk { position: absolute; top: -1px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
+  .bar .dotlbl { position: absolute; top: -26px; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: #b4155a; white-space: nowrap; background: #fff; border-radius: 6px; padding: 0 3px; }
   .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #b4155a; border-radius: 3px; }
   .bar .dot { position: absolute; top: -8px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: #b4155a; color: #fff;
     font-size: 11px; display: flex; align-items: center; justify-content: center; }
@@ -154,7 +156,7 @@ window.addEventListener("unhandledrejection", function (ev) {
   </div>
   <div class="row" style="margin-top:3px"><span class="badge" id="liveBadge">ট্রেন সিলেক্ট করুন</span></div>
   <div id="barWrap">
-    <div class="bar"><div class="fill" id="fill"></div><div class="dot" id="dot">🚆</div><div class="end"></div></div>
+    <div class="bar"><div class="fill" id="fill"></div><div id="ticks"></div><div class="dot" id="dot">🚆</div><div class="end"></div><span id="dotLbl" class="dotlbl"></span></div>
     <div class="labels"><span id="prevName"></span><span class="r" id="nextName2"></span></div>
   </div>
   <div id="myStatus"></div>
@@ -1028,8 +1030,21 @@ function updateCard(now) {
   setText("nextName", next.name);
   setText("nextDist", "(" + fmtDist(remain) + ")");
   setText("prevName", prev.name); setText("nextName2", next.name);
-  const frac = clamp(Math.abs(d - prev.d) / Math.max(1, Math.abs(next.d - prev.d)), 0, 1);
+  // যাত্রাপথের পুরো দাগ: বাঁয়ে শুরুর স্টেশন, ডানে গন্তব্য (দিক অনুযায়ী); ট্রেন সেই দাগে এগোয়
+  const sName = s => /^চট্টগ্রাম/.test(s.name) ? "চট্টগ্রাম" : s.name;
+  const S = dirSign >= 0 ? stations[0] : stations[n - 1], E = dirSign >= 0 ? stations[n - 1] : stations[0];
+  const span = Math.max(1, Math.abs(E.d - S.d));
+  const frac = clamp(Math.abs(d - S.d) / span, 0, 1);
+  setText("prevName", "শুরু: " + sName(S)); setText("nextName2", "গন্তব্য: " + sName(E));
+  const tkKey = dirSign + ":" + n + ":" + Math.round(total);
+  if (tkKey !== window.__tkKey) {   // স্টেশনের ছোট চিহ্ন (দিক বদলালে আবার)
+    window.__tkKey = tkKey;
+    $("ticks").innerHTML = stations.map(s => '<i class="tk" style="left:' + (Math.abs(s.d - S.d) / span * 100).toFixed(2) + '%"></i>').join("");
+  }
   $("fill").style.width = (frac * 100) + "%"; $("dot").style.left = (frac * 100) + "%";
+  const lbl = $("dotLbl");   // ট্রেন কোনো স্টেশনে (৮০০ মিটারের মধ্যে) থাকলে সেই নাম বিন্দুর ওপরে
+  if (bd <= 800) { setText("dotLbl", stations[cur].name); lbl.style.display = "block"; lbl.style.left = clamp(frac * 100, 12, 88) + "%"; }
+  else lbl.style.display = "none";
   $("barWrap").style.display = "block";
 }
 let lastWhere = 0;
