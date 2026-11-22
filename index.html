@@ -671,7 +671,7 @@ let mapLoaded = false, routeLayersAdded = false;
 
 // ---------- ট্রেনের গঠন (ইঞ্জিন + ৭টি কোচ), সব মাপ মিটারে ----------
 // TRAIN_SCALE: ট্রেন ও রেল-ট্র্যাক একসাথে কত গুণ বড় দেখাবে (১ = আসল মাপ)
-const TRAIN_SCALE = 2.5;
+const TRAIN_SCALE = 1.7;
 const TS = TRAIN_SCALE;
 const UNITS = [{ kind: "loco", len: 20 * TS }];
 for (let i = 0; i < 7; i++) UNITS.push({ kind: "coach", len: 20.5 * TS });
@@ -1080,6 +1080,8 @@ function applyDirHint() {
 }
 
 // ---------- সার্ভার থেকে লোকেশন আনা ----------
+// নেট অবস্থা: ডেটা আনা বা পাঠানো ব্যর্থ হলে true; তখন শেয়ারকারীর পর্দায় ট্রেন নিজের GPS দিয়ে চলে
+let pollFailing = false, sendFailing = false, srvSkew = 0;
 async function poll() {
   if (!selId || pollBusy) return;
   pollBusy = true;
@@ -1087,27 +1089,35 @@ async function poll() {
   try {
     const res = await fetch(API_URL + "?action=locations&_=" + Date.now());
     const data = await res.json();
+    pollFailing = false; if (data && data.now) srvSkew = data.now - Date.now();
     if (myId !== selId) return;
     const loc = data.locations && data.locations[myId];
     if (loc) { onLocation(loc, data.now, false); $("status").textContent = "✅ লোকেশন পাওয়া গেছে"; }
     else { live.has = false; $("status").textContent = "এই ট্রেনের লোকেশন এখনও কেউ শেয়ার করেননি।"; }
-  } catch (e) { $("status").textContent = "ডেটা আনতে সমস্যা হয়েছে (ইন্টারনেট?)।"; }
+  } catch (e) { pollFailing = true; $("status").textContent = "ডেটা আনতে সমস্যা হয়েছে (ইন্টারনেট?)।"; }
   finally { pollBusy = false; }
 }
 
 // ---------- "আমি এই ট্রেনে আছি" ----------
 const shareBtn = $("shareBtn");
+const SHOW_MY_DOT = false;   // true করলে শেয়ার চালুর সময় নিজের অবস্থানে নীল বিন্দু দেখাবে
 let watchId = null, lastSent = 0, myMarker = null;
 
 async function sendLocation(pos) {
   const now = Date.now();
   if (now - lastSent < SEND_MS) return;
   lastSent = now;
+  const ctl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
   try {
-    await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" },
+    await fetch(API_URL, { method: "POST", mode: "no-cors", signal: ctl ? ctl.signal : undefined, headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ trainId: select.value, lat: pos.coords.latitude, lng: pos.coords.longitude, speed: pos.coords.speed || 0 }) });
+    sendFailing = false;
     $("myStatus").textContent = "📡 পাঠানো হয়েছে (" + new Date().toLocaleTimeString("bn-BD") + ")";
-  } catch (e) { $("myStatus").textContent = "❌ লোকেশন পাঠানো যায়নি: " + e.message; }
+  } catch (e) {
+    sendFailing = true; lastSent = 0;   // নেট ফিরলে পরের GPS অবস্থানেই সঙ্গে সঙ্গে আবার পাঠাবে
+    $("myStatus").textContent = "⚠️ ইন্টারনেট নেই, অবস্থান পাঠানো যাচ্ছে না। ট্রেন আপনার GPS-এ চলবে; নেট ফিরলে নিজে পাঠাবে।";
+  } finally { if (timer) clearTimeout(timer); }
 }
 
 // ---------- অ্যাপ (App Inventor LocationSensor) থেকে লোকেশন ----------
@@ -1149,12 +1159,17 @@ function askAppOpenSettings() {
 const hasNative = () => !!nativeFix && Date.now() - nativeFix.t < 30000;
 function handleMyPos(pos) {
   const ll = [pos.coords.longitude, pos.coords.latitude];
-  if (!myMarker) {
+  if (!SHOW_MY_DOT) { /* নীল বিন্দু লুকানো */ } else if (!myMarker) {
     const el = document.createElement("div");
     el.style.cssText = "width:16px;height:16px;border-radius:50%;background:#42a5f5;border:3px solid #fff;box-shadow:0 0 4px #000";
     myMarker = new maplibregl.Marker({ element: el }).setLngLat(ll).addTo(map);
   } else myMarker.setLngLat(ll);
   $("myStatus").textContent = "📍 GPS পাওয়া গেছে" + (pos.coords.accuracy ? " (±" + Math.round(pos.coords.accuracy) + " মিটার)" : "");
+  // নেট না থাকলে সার্ভার থেকে নতুন তথ্য আসে না; তখন নিজের GPS-ই ট্রেনের অবস্থান (সার্ভারের ঘড়ির সাথে মিলিয়ে)
+  if ((pollFailing || sendFailing) && selId && selId === select.value) {
+    const tt = Date.now() + srvSkew;
+    onLocation({ time: tt, lat: pos.coords.latitude, lng: pos.coords.longitude, speed: pos.coords.speed || 0, n: 1 }, tt, false);
+  }
   sendLocation(pos);
 }
 
