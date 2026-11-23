@@ -515,35 +515,33 @@ const EXTRA_STATIONS = [
 // c  = আপনার দেওয়া যাচাই-করা অবস্থান [দ্রাঘিমা, অক্ষাংশ] (সরাসরি ব্যবহার হয়; লাইনের ২.৫ কিমির মধ্যে না পড়লে নাম দিয়ে OSM থেকে খোঁজা হয়)
 // n  = OSM-এর নাম মেলানোর রূপভেদ; fb = ফাইলে পাওয়া আনুমানিক অবস্থান [দ্রাঘিমা, অক্ষাংশ] (OSM-এ না মিললে এবং লাইনের ১৫০০ মিটারের মধ্যে থাকলে)
 const ROUTE_ORDER = [
-  { name: "চট্টগ্রাম স্টেশন", n: [], c: [91.82956, 22.33402], km: 0 },
-  { name: "চট্টগ্রাম জং", n: [], c: [91.81194, 22.34261], km: 1.8 },
-  { name: "ঝাউতলা", n: ["ঝাউতলা", "jhautala", "jhautola"], c: [91.80769, 22.35608], km: 3.22 },
-  { name: "পলিটেকনিক", n: ["পলিটেকনিক", "polytechnic"], c: [91.81180, 22.36650], km: 0.8 },
-  { name: "ষোলশহর", n: ["ষোলশহর", "সোলশহর", "sholoshahar", "solashahar", "sholashohor"], c: [91.82653, 22.36851], km: 0.8 },
-  { name: "জানআলীহাট", n: ["জানআলীহাট", "জানালীহাট", "janalihat"], c: [91.872250, 22.395986], km: 6.06 },
-  { name: "গোমদন্ডী", n: ["গোমদন্ডী", "গোমদণ্ডী", "gomdandi", "gomdondi"], c: [91.917382, 22.377812], km: 5.23 },
-  { name: "বেঙ্গুরা", n: ["বেঙ্গুরা", "বেংগুরা", "benguara", "bengura"], c: [91.943417, 22.352656], km: 4.2 },
-  { name: "ধলঘাট", n: ["ধলঘাট", "dholghat", "dhalghat"], c: [91.957063, 22.336980], km: 3.62 },
-  { name: "খানমহনা", n: ["খানমহনা", "খানমোহনা", "khanmohona"], c: [91.970661, 22.318560], km: 2.81 },
-  { name: "পটিয়া", n: ["পটিয়া", "patiya"], c: [91.981937, 22.297923], km: 2.41 },
-  { name: "চক্রশালা", n: ["চক্রশালা", "chakrashala"], c: [92.003871, 22.279442], km: 2.81 },
-  { name: "খরনা", n: ["খরনা", "kharna"], c: [92.014930, 22.261355], km: 1.61 },
-  { name: "কাঞ্চননগর", n: ["কাঞ্চননগর", "kanchannagar"], c: [92.028246, 22.235560], km: 3.22 },
-  { name: "খানহাট", n: ["খানহাট", "খাঁনহাট", "khanhat"], c: [92.0397278, 22.2161722], km: 2.01 },
-  { name: "হাসিমপুর", n: ["হাসিমপুর", "হাশিমপুর", "hasimpur", "hashimpur"], c: [92.052359, 22.195803], km: 3.22 },
-  { name: "দোহাজারী", n: ["দোহাজারী", "dohazari"], c: [92.066472, 22.169987], km: 3.62 },
-  { name: "সাতকানিয়া", n: ["সাতকানিয়া", "satkania"], c: [92.061920, 22.091932], km: 9.5 },
-  { name: "লোহাগাড়া", n: ["লোহাগাড়া", "lohagara"], c: [92.071823, 21.986301], km: 12.74 },
-  { name: "হারবাং", n: ["হারবাং", "harbang"], c: [92.047997, 21.850097], km: 15.25 },
-  { name: "চকরিয়া", n: ["চকরিয়া", "chakaria", "chokoria"], c: [92.042762, 21.756177], km: 11.51 },
-  { name: "ডুলাহাজারা", n: ["ডুলাহাজারা", "দুলাহাজারা", "dulahazara"], c: [92.073612, 21.675046], km: 10.65 },
-  { name: "ইসলামাবাদ", n: ["ইসলামাবাদ", "islamabad"], c: [92.053710, 21.563235], km: 12.84 },
-  { name: "রামু", n: ["রামু", "ramu"], c: [92.095239, 21.422444], km: 16.67 },
-  { name: "কক্সবাজার", n: ["কক্সবাজার", "coxsbazar", "cox"], c: [92.015075, 21.429149], km: 11.6 }
+  { name: "চট্টগ্রাম স্টেশন", n: [], c: [91.82956, 22.33402] },
+  { name: "চট্টগ্রাম জং", n: [], c: [91.81194, 22.34261] },
+  { name: "ঝাউতলা", n: ["ঝাউতলা", "jhautala", "jhautola"], c: [91.80769, 22.35608] },
+  { name: "পলিটেকনিক হল্ট", n: [], c: [91.811875, 22.364853] },
+  { name: "পলিটেকনিক", n: ["পলিটেকনিক", "polytechnic"], c: [91.81180, 22.36650] },
+  { name: "ষোলশহর", n: ["ষোলশহর", "সোলশহর", "sholoshahar", "solashahar", "sholashohor"], c: [91.82653, 22.36851] },
+  { name: "জানআলীহাট", n: ["জানআলীহাট", "জানালীহাট", "janalihat"], c: [91.872250, 22.395986] },
+  { name: "গোমদন্ডী", n: ["গোমদন্ডী", "গোমদণ্ডী", "gomdandi", "gomdondi"], c: [91.917382, 22.377812] },
+  { name: "বেঙ্গুরা", n: ["বেঙ্গুরা", "বেংগুরা", "benguara", "bengura"], c: [91.943417, 22.352656] },
+  { name: "ধলঘাট", n: ["ধলঘাট", "dholghat", "dhalghat"], c: [91.957063, 22.336980] },
+  { name: "খানমহনা", n: ["খানমহনা", "খানমোহনা", "khanmohona"], c: [91.970661, 22.318560] },
+  { name: "পটিয়া", n: ["পটিয়া", "patiya"], c: [91.981937, 22.297923] },
+  { name: "চক্রশালা", n: ["চক্রশালা", "chakrashala"], c: [92.003871, 22.279442] },
+  { name: "খরনা", n: ["খরনা", "kharna"], c: [92.014930, 22.261355] },
+  { name: "কাঞ্চননগর", n: ["কাঞ্চননগর", "kanchannagar"], c: [92.028246, 22.235560] },
+  { name: "খানহাট", n: ["খানহাট", "খাঁনহাট", "khanhat"], c: [92.0397278, 22.2161722] },
+  { name: "হাসিমপুর", n: ["হাসিমপুর", "হাশিমপুর", "hasimpur", "hashimpur"], c: [92.052359, 22.195803] },
+  { name: "দোহাজারী", n: ["দোহাজারী", "dohazari"], c: [92.066472, 22.169987] },
+  { name: "সাতকানিয়া", n: ["সাতকানিয়া", "satkania"], c: [92.061920, 22.091932] },
+  { name: "লোহাগাড়া", n: ["লোহাগাড়া", "lohagara"], c: [92.071823, 21.986301] },
+  { name: "হারবাং", n: ["হারবাং", "harbang"], c: [92.047997, 21.850097] },
+  { name: "চকরিয়া", n: ["চকরিয়া", "chakaria", "chokoria"], c: [92.042762, 21.756177] },
+  { name: "ডুলাহাজারা", n: ["ডুলাহাজারা", "দুলাহাজারা", "dulahazara"], c: [92.073612, 21.675046] },
+  { name: "ইসলামাবাদ", n: ["ইসলামাবাদ", "islamabad"], c: [92.053710, 21.563235] },
+  { name: "রামু", n: ["রামু", "ramu"], c: [92.095239, 21.422444] },
+  { name: "কক্সবাজার", n: ["কক্সবাজার", "coxsbazar", "cox"], c: [92.015075, 21.429149] }
 ];
-// km = আগের স্টেশন থেকে সরকারি দূরত্ব (কিমি); এখান থেকে চট্টগ্রাম থেকে মোট দূরত্ব (cumKm) বের হয়
-const cumKm = (() => { let s = 0; return ROUTE_ORDER.map(e => (s += e.km || 0)); })();
-
 // বানানের রূপভেদ মিলিয়ে নেওয়ার জন্য নাম সরল করা
 const normName = s => String(s || "").normalize("NFC").toLowerCase()
   .replace(/[‌‍\s\-\.'’]/g, "")
@@ -573,7 +571,7 @@ function buildOrderedStations(coords, idx, raw, extra) {
       const r1 = snapToRoute(coords, idx.cum, e.fb, null, 0);
       if (r1 && r1.off <= 1500) best = { c: e.fb, d: r1.d, off: r1.off, src: "ফাইল", w: 1 };
     }
-    if (best) cand.push(Object.assign({ name: e.name, i: i, km: cumKm[i] }, best)); else missing.push(e.name);
+    if (best) cand.push(Object.assign({ name: e.name, i: i }, best)); else missing.push(e.name);
   });
   // ক্রম অনুযায়ী দূরত্ব (d) বাড়তে থাকা সবচেয়ে নির্ভরযোগ্য উপসারি রাখা
   const n = cand.length, score = [], prev = [];
@@ -584,7 +582,7 @@ function buildOrderedStations(coords, idx, raw, extra) {
   let end = -1; for (let a = 0; a < n; a++) if (end < 0 || score[a] > score[end]) end = a;
   const keep = {}; for (let a = end; a >= 0; a = prev[a]) keep[a] = true;
   const list = [];
-  cand.forEach((c, a) => { if (keep[a]) list.push({ name: c.name, c: c.c, d: c.d, off: c.off, src: c.src, km: c.km }); else missing.push(c.name + " (ক্রম মেলেনি)"); });
+  cand.forEach((c, a) => { if (keep[a]) list.push({ name: c.name, c: c.c, d: c.d, off: c.off, src: c.src }); else missing.push(c.name + " (ক্রম মেলেনি)"); });
   return { list: list, missing: missing };
 }
 
@@ -1028,7 +1026,7 @@ function updateCard(now) {
   else { const hi = firstAfter(d); ni = dirSign >= 0 ? hi : hi - 1; pi = ni - dirSign; }
   if (ni < 0 || ni >= n) { setText("nextName", "—"); setText("nextDist", "(এটি শেষ স্টেশন)"); return; }
   const next = stations[ni], prev = stations[clamp(pi, 0, n - 1)];
-  const kHere = kmAt(d), remain = (kHere != null && next.km != null) ? Math.abs(next.km - kHere) * 1000 : Math.abs(next.d - d);   // সরকারি কিমি থাকলে সেটা দিয়ে
+  const remain = Math.abs(next.d - d);
   setText("nextName", next.name);
   setText("nextDist", "(" + fmtDist(remain) + ")");
   setText("prevName", prev.name); setText("nextName2", next.name);
@@ -1036,12 +1034,12 @@ function updateCard(now) {
   const sName = s => /^চট্টগ্রাম/.test(s.name) ? "চট্টগ্রাম" : s.name;
   const S = dirSign >= 0 ? stations[0] : stations[n - 1], E = dirSign >= 0 ? stations[n - 1] : stations[0];
   const span = Math.max(1, Math.abs(E.d - S.d));
-  const frac = (kHere != null && S.km != null && E.km != null) ? clamp(Math.abs(kHere - S.km) / Math.max(0.001, Math.abs(E.km - S.km)), 0, 1) : clamp(Math.abs(d - S.d) / span, 0, 1);
+  const frac = clamp(Math.abs(d - S.d) / span, 0, 1);
   setText("prevName", "শুরু: " + sName(S)); setText("nextName2", "গন্তব্য: " + sName(E));
   const tkKey = dirSign + ":" + n + ":" + Math.round(total);
   if (tkKey !== window.__tkKey) {   // স্টেশনের ছোট চিহ্ন (দিক বদলালে আবার)
     window.__tkKey = tkKey;
-    $("ticks").innerHTML = stations.map(s => '<i class="tk" style="left:' + ((S.km != null && E.km != null ? Math.abs(s.km - S.km) / Math.max(0.001, Math.abs(E.km - S.km)) : Math.abs(s.d - S.d) / span) * 100).toFixed(2) + '%"></i>').join("");
+    $("ticks").innerHTML = stations.map(s => '<i class="tk" style="left:' + (Math.abs(s.d - S.d) / span * 100).toFixed(2) + '%"></i>').join("");
   }
   $("fill").style.width = (frac * 100) + "%"; $("dot").style.left = (frac * 100) + "%";
   const lbl = $("dotLbl");   // ট্রেন কোনো স্টেশনে (৮০০ মিটারের মধ্যে) থাকলে সেই নাম বিন্দুর ওপরে
@@ -1051,15 +1049,6 @@ function updateCard(now) {
 }
 let lastWhere = 0;
 
-// রুটের d (মিটার) থেকে সরকারি কিমি-মাইলফলক: দুই স্টেশনের মাঝে সমানুপাতিকভাবে; km না থাকলে null
-function kmAt(d) {
-  const n = stations.length;
-  if (n < 2 || stations.some(s => s.km == null)) return null;
-  if (d <= stations[0].d) return stations[0].km + (d - stations[0].d) / 1000;
-  if (d >= stations[n - 1].d) return stations[n - 1].km + (d - stations[n - 1].d) / 1000;
-  const hi = firstAfter(d), a = stations[hi - 1], b = stations[hi];
-  return a.km + (d - a.d) / Math.max(1, b.d - a.d) * (b.km - a.km);
-}
 // d-এর পরের প্রথম স্টেশনের সূচক (না থাকলে তালিকার দৈর্ঘ্য)
 function firstAfter(d) { const i = stations.findIndex(s => s.d > d); return i === -1 ? stations.length : i; }
 
